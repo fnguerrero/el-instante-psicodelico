@@ -341,6 +341,26 @@ var Audio2 = (function () {
     window.addEventListener('focus', despertar);
     window.addEventListener('pagehide', cerrar);
     window.addEventListener('beforeunload', cerrar);
+
+/* ---- señal de silencio entre pestañas ----
+   localStorage avisa a las demás pestañas del mismo origen cuando cambia. Una
+   página cualquiera de fnguerrero.github.io puede escribir esta marca y todos
+   los juegos abiertos se callan solos, sin tener que silenciar el navegador
+   entero desde Windows (que también apagaba YouTube). */
+(function () {
+  function porSenal(e) {
+    if (e.key !== 'juegos.silencio') return;
+    if (typeof Audio2 !== 'undefined') Audio2.cerrar();
+  }
+  window.addEventListener('storage', porSenal);
+
+  // Si la marca ya estaba puesta al abrir, no se arranca sonando
+  try {
+    var marca = parseInt(window.localStorage.getItem('juegos.silencio'), 10);
+    if (marca && Date.now() - marca < 4000) { if (typeof Audio2 !== 'undefined') Audio2.cerrar(); }
+  } catch (err) { /* localStorage puede fallar en file:// */ }
+})();
+
   }
 
   return {
