@@ -1,0 +1,171 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Duermevela</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300&display=swap">
+<style>
+  :root{
+    --tinta:#ece6d8;
+    --tenue:rgba(236,230,216,.62);
+    --oro:#dcb26c;
+    --oro-suave:rgba(220,178,108,.5);
+    --panel:rgba(14,11,22,.94);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;overflow:hidden;background:#05060e;
+    font-family:'Cormorant Garamond',Georgia,serif;color:var(--tinta);
+    -webkit-font-smoothing:antialiased}
+  canvas{display:block;width:100vw;height:100vh;position:fixed;inset:0}
+
+  .capa{position:fixed;inset:0;pointer-events:none}
+
+  /* ---------- portada ---------- */
+  #portada{display:flex;flex-direction:column;align-items:center;
+    justify-content:center;gap:26px;background:radial-gradient(ellipse at 50% 45%,
+    rgba(24,20,44,.55),rgba(5,6,14,.96));pointer-events:auto;
+    transition:opacity 1.4s;z-index:6}
+  #portada.ido{opacity:0;pointer-events:none}
+  .titulo{font-size:clamp(52px,11vw,104px);font-weight:300;letter-spacing:.10em;
+    margin:0;color:#f2ecdc;text-shadow:0 0 60px rgba(190,170,255,.35)}
+  .bajada{font-size:clamp(17px,2.4vw,21px);font-style:italic;font-weight:300;
+    color:var(--tenue);max-width:30ch;text-align:center;line-height:1.6;margin:0}
+  .boton{pointer-events:auto;font-family:inherit;font-size:17px;letter-spacing:.20em;
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    text-transform:uppercase;color:var(--oro);background:transparent;cursor:pointer;
+    border:1px solid var(--oro-suave);border-radius:2px;padding:15px 40px;
+    transition:background .4s,color .4s,letter-spacing .4s}
+  .boton:hover{background:rgba(220,178,108,.14);color:#f6e2ba;letter-spacing:.26em}
+  .boton:focus-visible{outline:2px solid var(--oro);outline-offset:3px}
+
+  /* ---------- el texto de Bel ---------- */
+  #relato{position:fixed;left:50%;transform:translateX(-50%);
+    bottom:clamp(240px,30vh,290px);width:min(660px,88vw);text-align:center;
+    font-size:clamp(19px,2.5vw,25px);line-height:1.55;font-weight:300;
+    text-shadow:0 2px 24px rgba(0,0,0,.95);opacity:0;transition:opacity 1s;
+    margin:0;z-index:4}
+  #relato.ver{opacity:1}
+
+  /* ---------- la mano ---------- */
+  #mano{position:fixed;left:0;right:0;bottom:0;display:flex;align-items:flex-end;
+    justify-content:center;gap:clamp(12px,2.4vw,28px);padding:0 16px 26px;
+    z-index:5;pointer-events:none}
+  .carta{pointer-events:auto;width:clamp(104px,14vw,142px);
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    aspect-ratio:2/3;border-radius:10px;cursor:pointer;
+    background:linear-gradient(165deg,#241c36,#151122 55%,#0d0a16);
+    border:1px solid rgba(212,180,120,.40);
+    box-shadow:0 16px 44px rgba(0,0,0,.68), inset 0 1px 0 rgba(255,235,190,.10);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:clamp(4px,1vh,10px);padding:10px;text-align:center;
+    transform:translateY(46px) rotate(var(--giro)) scale(.94);opacity:0;
+    transition:transform .5s cubic-bezier(.2,.9,.3,1.25),opacity .5s,
+      box-shadow .35s,border-color .35s}
+  .carta.entra{transform:translateY(0) rotate(var(--giro)) scale(1);opacity:1}
+  .carta:hover,.carta:focus-visible{transform:translateY(-14px) rotate(0deg) scale(1.07);
+    border-color:rgba(236,200,128,.95);outline:none;
+    box-shadow:0 24px 60px rgba(0,0,0,.72),0 0 34px rgba(216,168,84,.32),
+      inset 0 1px 0 rgba(255,235,190,.20)}
+  .carta .glifo{font-size:clamp(30px,4.4vw,46px);color:var(--oro);line-height:1;
+    text-shadow:0 0 24px rgba(224,185,106,.6)}
+  .carta .nom{font-size:clamp(12px,1.5vw,15px);letter-spacing:.10em;
+    text-transform:uppercase;color:rgba(236,230,216,.82);line-height:1.25}
+  .carta .lec{font-size:clamp(11px,1.35vw,14px);font-style:italic;
+    color:rgba(236,230,216,.44);line-height:1.35}
+  #mano.fuera .carta{pointer-events:none;opacity:0;transform:translateY(60px) scale(.9)}
+
+  /* ---------- cabecera ---------- */
+  #rotulo{position:fixed;top:clamp(22px,4vh,42px);left:50%;
+    transform:translateX(-50%);font-size:13px;letter-spacing:.30em;
+    text-transform:uppercase;color:rgba(220,178,108,.55);margin:0;
+    opacity:0;transition:opacity 1s;z-index:4;text-align:center}
+  #rotulo.ver{opacity:1}
+
+  /* ---------- pie: cuántas cartas quedan ---------- */
+  #restan{position:fixed;bottom:14px;right:18px;font-size:12px;
+    letter-spacing:.18em;text-transform:uppercase;
+    color:rgba(236,230,216,.30);z-index:5;opacity:0;transition:opacity .8s}
+  #restan.ver{opacity:1}
+
+  /* ---------- boton de sonido ---------- */
+  .sonido{position:fixed;top:clamp(18px,3vh,32px);right:clamp(16px,3vw,28px);
+    touch-action:manipulation;-webkit-tap-highlight-color:transparent;
+    z-index:8;width:42px;height:42px;border-radius:50%;cursor:pointer;
+    font-family:inherit;font-size:19px;line-height:1;
+    color:rgba(236,230,216,.42);background:rgba(14,11,22,.55);
+    border:1px solid rgba(212,180,120,.28);
+    transition:color .35s,border-color .35s,background .35s}
+  .sonido:hover{color:var(--oro);border-color:var(--oro-suave);
+    background:rgba(30,24,44,.75)}
+  .sonido:focus-visible{outline:2px solid var(--oro);outline-offset:3px}
+  .sonido[aria-pressed="true"]{color:var(--oro);border-color:var(--oro-suave)}
+
+  /* ---------- cierre ---------- */
+  #cierre{position:fixed;inset:0;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;gap:30px;padding:8vw;
+    background:radial-gradient(ellipse at 50% 40%,rgba(26,22,46,.72),rgba(5,6,14,.97));
+    opacity:0;pointer-events:none;transition:opacity 2s;z-index:7}
+  #cierre.ver{opacity:1;pointer-events:auto}
+  #cierre p{max-width:56ch;text-align:center;font-size:clamp(18px,2.4vw,23px);
+    line-height:1.65;font-weight:300;margin:0;color:rgba(236,230,216,.92)}
+  #cierre .firma{font-style:italic;color:var(--tenue);font-size:clamp(16px,2vw,19px)}
+
+  /* ---------- celular ---------- */
+  /* En vertical la pantalla es angosta y alta: las cartas se achican, se
+     juntan, y el relato sube para no quedar debajo de la mano. */
+  @media (max-width:560px){
+    #mano{gap:8px;padding:0 8px 18px}
+    .carta{width:min(30vw,116px);border-radius:8px;padding:8px 6px;gap:4px}
+    .carta .glifo{font-size:clamp(24px,7vw,34px)}
+    .carta .nom{font-size:clamp(10px,2.9vw,12px);letter-spacing:.06em}
+    .carta .lec{font-size:clamp(9px,2.6vw,11px);line-height:1.25}
+    /* Sin hover en tactil, el levantar la carta no sirve: se marca al tocarla. */
+    .carta:active{transform:translateY(-8px) rotate(0deg) scale(1.04);
+      border-color:rgba(236,200,128,.95)}
+    #relato{bottom:calc(min(30vw,116px) * 1.5 + 44px);font-size:clamp(17px,4.6vw,21px);
+      width:92vw}
+    #rotulo{font-size:11px;letter-spacing:.22em;top:16px;max-width:64vw}
+    .titulo{letter-spacing:.06em}
+    #restan{bottom:8px;right:10px;font-size:10px}
+    .sonido{width:38px;height:38px;font-size:17px}
+    #cierre{gap:20px;padding:8vw 6vw}
+    #cierre p{font-size:clamp(16px,4.3vw,19px);line-height:1.55}
+  }
+  /* Pantalla baja y ancha (celular acostado): lo mismo pero mas apretado. */
+  @media (max-height:520px){
+    #mano{padding-bottom:10px;gap:10px}
+    .carta{width:min(20vh,104px)}
+    #relato{bottom:calc(min(20vh,104px) * 1.5 + 26px);font-size:clamp(16px,3.4vh,20px)}
+    #rotulo{top:10px}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition-duration:.01ms!important}
+  }
+</style></head><body>
+<canvas id="c"></canvas>
+
+<div class="capa" id="portada">
+  <h1 class="titulo">Duermevela</h1>
+  <p class="bajada">Bel se durmió. Lo que sigue lo hace ella,
+    aunque todavía no lo sepa.</p>
+  <button class="boton" id="empezar">Dormirse</button>
+</div>
+
+<p id="rotulo"></p>
+<p id="relato"></p>
+<div id="mano"></div>
+<div id="restan"></div>
+<button id="sonido" class="sonido" aria-pressed="false"
+  title="Sonido"><span id="sonidoIcono">♪</span></button>
+
+<div id="cierre"></div>
+
+<script src="js/dibujo.js"></script>
+<script src="js/bel.js"></script>
+<script src="js/cielo.js"></script>
+<script src="js/figuras.js"></script>
+<script src="js/pintores.js"></script>
+<script src="js/audio.js"></script>
+<script src="js/guion.js"></script>
+<script src="js/juego.js"></script>
+</body></html>

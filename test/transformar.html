@@ -1,0 +1,235 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8">
+<title>Duermevela — prueba de transformación</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@300;400;600&display=swap">
+<style>
+  html,body{margin:0;height:100%;background:#05060e;overflow:hidden;
+    font-family:'Cormorant Garamond',Georgia,serif;color:#e8e2d4}
+  canvas{display:block;width:100vw;height:100vh}
+
+  /* La mano: tres cartas al pie. Son el unico control del juego. */
+  .mano{position:fixed;left:0;right:0;bottom:0;height:230px;display:flex;
+    align-items:flex-end;justify-content:center;gap:26px;padding-bottom:22px;
+    pointer-events:none}
+  .carta{pointer-events:auto;width:132px;height:196px;border-radius:9px;cursor:pointer;
+    background:linear-gradient(165deg,#221a33,#141020 55%,#0d0a16);
+    border:1px solid rgba(212,180,120,.42);
+    box-shadow:0 14px 40px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,235,190,.10);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:8px;transition:transform .32s cubic-bezier(.2,.9,.3,1.3), box-shadow .32s,
+      border-color .32s, opacity .4s;
+    transform:translateY(38px) rotate(var(--giro))}
+  .carta:hover{transform:translateY(-6px) rotate(0deg) scale(1.05);
+    border-color:rgba(232,196,124,.9);
+    box-shadow:0 20px 52px rgba(0,0,0,.7), 0 0 30px rgba(212,164,80,.28),
+      inset 0 1px 0 rgba(255,235,190,.18)}
+  .glifo{font-size:44px;color:#e0b96a;line-height:1;
+    text-shadow:0 0 22px rgba(224,185,106,.55)}
+  .nom{font-size:15px;letter-spacing:.14em;text-transform:uppercase;
+    color:rgba(232,226,212,.78)}
+  .num{font-size:12px;letter-spacing:.2em;color:rgba(212,180,120,.6)}
+  .mano.quieta .carta{pointer-events:none;opacity:.25;transform:translateY(70px) scale(.9)}
+
+  /* Lo que Bel piensa. Abajo, fuera del paso de las figuras. */
+  .voz{position:fixed;left:50%;transform:translateX(-50%);bottom:250px;
+    width:min(620px,86vw);text-align:center;font-size:23px;line-height:1.5;
+    color:rgba(240,234,220,.94);opacity:0;transition:opacity .9s;
+    text-shadow:0 2px 20px rgba(0,0,0,.9);margin:0}
+  .voz.ver{opacity:1}
+  .pista{position:fixed;left:50%;transform:translateX(-50%);top:34px;margin:0;
+    font-size:14px;letter-spacing:.22em;text-transform:uppercase;
+    color:rgba(212,180,120,.5)}
+</style></head><body>
+<canvas id="c"></canvas>
+<p class="pista">Elegí una carta</p>
+<p class="voz" id="voz"></p>
+<div class="mano" id="mano"></div>
+
+<script src="../js/dibujo.js"></script>
+<script src="../js/bel.js"></script>
+<script src="../js/cielo.js"></script>
+<script src="../js/figuras.js"></script>
+<script src="../js/pintores.js"></script>
+<script>
+(function () {
+  'use strict';
+  const cv = document.getElementById('c'), cx = cv.getContext('2d');
+  let W = 0, H = 0;
+  function medir() {
+    const d = Math.min(2, window.devicePixelRatio || 1);
+    W = cv.clientWidth; H = cv.clientHeight;
+    // Con la pestaña oculta no hay layout y el canvas queda en 0x0: sin un
+    // tamaño de respaldo, cualquier captura sale vacía.
+    if (W < 2 || H < 2) { W = 1280; H = 760; }
+    cv.width = W * d; cv.height = H * d;
+    cx.setTransform(d, 0, 0, d, 0, 0);
+  }
+  window.addEventListener('resize', medir); medir();
+
+  /* Las tres cartas de la prueba. Cada una lleva la escena a otra figura. */
+  const MANO = [
+    { num:'XVII', nombre:'La Estrella', glifo:'✶', figura:'platillo',
+      color:'170,205,255',
+      voz:'No era una montaña rusa. Nunca lo fue. Yo la miré y ella esperó a que la mirara bien.' },
+    { num:'XVI', nombre:'La Torre', glifo:'⚡', figura:'ruina',
+      color:'255,150,120',
+      voz:'Se cayó porque yo pensé que se iba a caer. Eso es lo que me asusta.' },
+    { num:'XVIII', nombre:'La Luna', glifo:'☾', figura:'luna',
+      color:'220,215,255',
+      voz:'Se vino encima. Y no me dio miedo, me dio alivio, como cuando algo por fin se acerca.' }
+  ];
+
+  const bel = Bel.crear();
+  const cielo = Cielo.crear();
+  let t = 0;
+
+  /* El estado de la escena: que figura hay, hacia cual va, y cuanto lleva. */
+  const esc = {
+    figura: 'montania',
+    color: '210,190,255',
+    pares: null,
+    u: 1,          // 1 = la transformacion termino
+    destino: null,
+    fogonazo: 0
+  };
+
+  function mezclarColor(a, b, u) {
+    const A = a.split(',').map(Number), B = b.split(',').map(Number);
+    return A.map((v, i) => Math.round(v + (B[i] - v) * u)).join(',');
+  }
+
+  function jugar(carta) {
+    if (esc.u < 1) return;
+    esc.pares = Figuras.preparar(esc.figura, carta.figura);
+    esc.destino = carta;
+    esc.u = 0;
+    esc.fogonazo = 1;
+    document.getElementById('mano').classList.add('quieta');
+    const voz = document.getElementById('voz');
+    voz.classList.remove('ver');
+    setTimeout(function () { voz.textContent = carta.voz; voz.classList.add('ver'); }, 1400);
+  }
+
+  // Armar la mano.
+  const cont = document.getElementById('mano');
+  MANO.forEach(function (c, i) {
+    const el = document.createElement('div');
+    el.className = 'carta';
+    el.style.setProperty('--giro', ((i - 1) * 5) + 'deg');
+    el.innerHTML = '<span class="glifo">' + c.glifo + '</span>' +
+                   '<span class="nom">' + c.nombre + '</span>' +
+                   '<span class="num">' + c.num + '</span>';
+    el.addEventListener('click', function () { jugar(c); });
+    cont.appendChild(el);
+  });
+
+  let anterior = performance.now();
+  // Con la pestaña oculta el navegador no llama a requestAnimationFrame. Para
+  // poder revisar un cuadro puntual, el bucle se puede pisar desde afuera.
+  let sinBucle = false;
+  function cuadro(ahora) {
+    const dt = sinBucle ? 0 : Math.min(.05, (ahora - anterior) / 1000);
+    anterior = ahora; t += dt;
+
+    Cielo.actualizar(cielo, dt);
+    if (esc.u < 1) {
+      esc.u = Math.min(1, esc.u + dt * .42);   // la mutacion dura ~2.4s
+      if (esc.u >= 1 && esc.destino) {
+        esc.figura = esc.destino.figura;
+        esc.color = esc.destino.color;
+        esc.destino = null;
+        document.getElementById('mano').classList.remove('quieta');
+      }
+    }
+    if (esc.fogonazo > 0) esc.fogonazo = Math.max(0, esc.fogonazo - dt * .55);
+
+    // --- fondo ---
+    const g = cx.createLinearGradient(0, 0, 0, H);
+    g.addColorStop(0, '#070819'); g.addColorStop(.55, '#0d0d22'); g.addColorStop(1, '#161029');
+    cx.fillStyle = g; cx.fillRect(0, 0, W, H);
+    Cielo.dibujar(cx, cielo, W, H, t);
+
+    const piso = H * .82;
+
+    // Resplandor de la transformacion, detras de todo.
+    if (esc.fogonazo > 0) {
+      const q = esc.fogonazo;
+      const col = esc.destino ? esc.destino.color : esc.color;
+      const r = cx.createRadialGradient(W * .5, H * .46, 0, W * .5, H * .46, H * .9);
+      r.addColorStop(0, 'rgba(' + col + ',' + (.22 * q) + ')');
+      r.addColorStop(1, 'rgba(' + col + ',0)');
+      cx.fillStyle = r; cx.fillRect(0, 0, W, H);
+    }
+
+    // --- la figura ---
+    /* Tres capas encimadas, cada una con su ventana de tiempo:
+       la figura que había se apaga, las piezas vuelan, la nueva se enciende.
+       Lo que se ve es una cosa desarmándose y rearmándose en otra. */
+    const fx = W * .5, fy = H * .42, escala = Math.min(W * .26, H * .32);
+    const extra = { perfil: Figuras.perfilMontania(), alPiso: piso - fy };
+    const u = esc.u;
+
+    if (u >= 1) {
+      Pintores.pintar(cx, esc.figura, fx, fy, escala, t, extra);
+    } else {
+      const aSale = 1 - Math.min(1, u / .26);
+      const aPiezas = Math.min(1, Math.min(u / .16, (1 - u) / .18));
+      const aEntra = Math.max(0, (u - .70) / .30);
+
+      if (aSale > .01) {
+        cx.save(); cx.globalAlpha = aSale;
+        Pintores.pintar(cx, esc.figura, fx, fy, escala, t, extra);
+        cx.restore();
+      }
+      if (aPiezas > .01 && esc.pares) {
+        const colorActual = esc.destino
+          ? mezclarColor(esc.color, esc.destino.color, u) : esc.color;
+        cx.save(); cx.globalAlpha = aPiezas;
+        Figuras.dibujar(cx, esc.pares, u, fx, fy, escala, colorActual, t);
+        cx.restore();
+      }
+      if (aEntra > .01 && esc.destino) {
+        cx.save(); cx.globalAlpha = aEntra;
+        Pintores.pintar(cx, esc.destino.figura, fx, fy, escala, t, extra);
+        cx.restore();
+      }
+    }
+
+    // --- suelo ---
+    cx.fillStyle = '#0a0812';
+    cx.fillRect(0, piso, W, H - piso);
+    cx.strokeStyle = 'rgba(180,160,220,.14)';
+    cx.lineWidth = 1;
+    cx.beginPath(); cx.moveTo(0, piso); cx.lineTo(W, piso); cx.stroke();
+
+    // --- Bel, chiquita, mirando la figura ---
+    bel.mirando = 1;
+    Bel.actualizar(bel, dt, false);
+    Bel.dibujar(cx, bel, W * .235, piso, 1.05, 1);
+
+    if (!sinBucle) requestAnimationFrame(cuadro);
+  }
+
+  requestAnimationFrame(cuadro);
+
+  /* Captura para revisar el render sin depender del navegador. */
+  window.capturar = function (nombre) {
+    return fetch('/_captura/' + nombre + '.png',
+      { method: 'POST', body: cv.toDataURL('image/png') });
+  };
+  /* Dibuja un instante puntual de la mutacion y lo manda a guardar.
+     Sirve para revisar el render sin depender de que la pestaña esté visible. */
+  window.instante = function (desde, hasta, u, nombre) {
+    esc.figura = desde;
+    esc.color = '210,190,255';
+    esc.destino = MANO.filter(function (m) { return m.figura === hasta; })[0] || null;
+    esc.pares = Figuras.preparar(desde, hasta);
+    esc.u = u;
+    esc.fogonazo = Math.max(0, 1 - u);
+    sinBucle = true;
+    cuadro(performance.now());
+    sinBucle = false;
+    return window.capturar(nombre);
+  };
+})();
+</script>
+</body></html>
