@@ -305,10 +305,49 @@ var Audio2 = (function () {
     };
   }
 
+  /* --- que no siga sonando con la pestaña de fondo ---
+     El colchón vive en un setInterval y el AudioContext no se entera de que
+     nadie está mirando: una pestaña olvidada seguía sonando sola, sin forma
+     de saber de dónde salía. */
+  function dormir() {
+    if (ac && ac.state === 'running') {
+      try { ac.suspend(); } catch (e) { /* nada */ }
+    }
+  }
+
+  function despertar() {
+    if (ac && ac.state === 'suspended' && encendido) {
+      try { ac.resume(); } catch (e) { /* nada */ }
+    }
+  }
+
+  /* Al cerrar la pestaña: cortar de raíz, sin dejar osciladores ni timers. */
+  function cerrar() {
+    if (colchon && colchon.reloj) { clearInterval(colchon.reloj); colchon.reloj = null; }
+    colchon = null;
+    encendido = false;
+    if (ac) {
+      try { ac.close(); } catch (e) { /* nada */ }
+      ac = null;
+      maestro = null;
+    }
+  }
+
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', function () {
+      if (document.hidden) dormir(); else despertar();
+    });
+    window.addEventListener('blur', dormir);
+    window.addEventListener('focus', despertar);
+    window.addEventListener('pagehide', cerrar);
+    window.addEventListener('beforeunload', cerrar);
+  }
+
   return {
     prender: prender, apagar: apagar, alternar: alternar, activo: activo,
     gota: gota, roce: roce, golpe: golpe, transformar: transformar,
-    entrada: entrada, final: final, estado: estado
+    entrada: entrada, final: final, estado: estado,
+    dormir: dormir, despertar: despertar, cerrar: cerrar
   };
 })();
 
