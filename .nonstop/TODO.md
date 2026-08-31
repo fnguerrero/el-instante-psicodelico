@@ -78,3 +78,7 @@ Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho y verificado · `[!]` 
 
 - [x] 51 · Verificación final contra los criterios de la SPEC · verif: los 8 criterios en verde
 - [x] 52 · Capturas del look final (26/45/65 KB). NO se tocó Portfolio/: esa entrada es de la versión original y la lleva otra sesión · verif: 3 imágenes bajo 100 KB
+
+## Post-cierre — lo que se rompió y se arregló
+
+- [x] 53 · El juego se veía negro en pantalla · verif: brillo medio de escena > 40 y > 5% claro en los 13 lugares con tensión 0

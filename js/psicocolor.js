@@ -217,4 +217,37 @@
     cx.restore();
   });
 
+
+  /* Luz base sobre la figura.
+
+     Sin umbral y sin depender de la tension: es la unica capa que existe para
+     que se VEA, no para que se deforme. El juego original era oscuro a
+     proposito, pero era oscuro con contraste; al meterle color encima, las
+     figuras de linea fina (la montaña rusa, la bandada, el arbol) se perdian
+     contra el fondo y quedaba una pantalla negra con textos flotando.
+
+     Ilumina un ovalo alrededor de lo que haya delante, con el color del lugar,
+     bastante abierto para que no se lea como un foco de teatro. */
+  P.capa('luzbase', { fase: 'cielo', movimiento: false }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var tono = tonoDe(e.color);
+    var rx = Math.max(e.E * 2.6, ctx.W * .30);
+    var ry = Math.max(e.E * 2.0, ctx.H * .40);
+    var g = cx.createRadialGradient(e.fx, e.fy, 0, e.fx, e.fy, 1);
+    // Gradiente circular estirado a ovalo con la transformacion, que es mas
+    // barato que dibujar un radial elipsoide a mano.
+    cx.save();
+    cx.translate(e.fx, e.fy);
+    cx.scale(rx / ry, 1);
+    cx.translate(-e.fx, -e.fy);
+    var g2 = cx.createRadialGradient(e.fx, e.fy, ry * .10, e.fx, e.fy, ry);
+    g2.addColorStop(0, 'hsla(' + tono + ',70%,62%,.30)');
+    g2.addColorStop(.45, 'hsla(' + tono + ',72%,55%,.15)');
+    g2.addColorStop(1, 'hsla(' + tono + ',75%,50%,0)');
+    cx.globalCompositeOperation = 'lighter';
+    cx.fillStyle = g2;
+    cx.beginPath(); cx.arc(e.fx, e.fy, ry, 0, 6.2832); cx.fill();
+    cx.restore();
+  });
+
 })();

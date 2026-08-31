@@ -68,7 +68,20 @@ var Psicodelia = (function () {
      que hace que se note que el mundo esta mal desde el principio. */
   function grado(tension, climax) {
     if (!activo) return 0;
-    var base = .10 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .90;
+    /* El piso es .30 y no .10.
+
+       Con .10 el juego arrancaba tecnicamente correcto y practicamente negro:
+       brillo medio de 17 sobre 255 en los trece lugares, con menos del 5% de
+       pixeles claros. En un monitor eso no es "sobrio", es una pantalla
+       apagada. Las capas de luz —aura, contraluz, plasma, suelo— tienen sus
+       umbrales entre .18 y .25, asi que ninguna llegaba a encenderse en el
+       primer lugar y la escena quedaba a oscuras esperando una tension que
+       todavia no existia.
+
+       Con .30 el primer lugar ya tiene luz propia y el recorrido hasta el
+       octavo sigue siendo igual de largo: lo que cambia es de donde arranca,
+       no cuanto sube. */
+    var base = .30 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .70;
     return Math.min(1.7, base * NIVELES[nivel]);
   }
 
