@@ -101,7 +101,9 @@
     recorrido: [],          // la cadena de figuras, en orden
     indicios: [],           // lo que llegó a ver
     perdidos: [],           // lo que estuvo ahí y no llegó a ver
-    jugando: false,         // hay una jugada en curso: no aceptar otra
+    jugando: false,
+    congelado: false,        // la transformacion frenada mientras se lee un indicio
+    seguirPaso: null,        // como sigue el paso cuando termine de leerse         // hay una jugada en curso: no aceptar otra
     guiaMostrada: false,    // la guia del instante se ve una sola vez
     errosSeguidos: 0,       // tres seguidos y la ventana se agranda
     ultimoTic: -1,          // para no repetir el tic del anillo
@@ -269,6 +271,7 @@
     J.destino = null;
     J.pares = null;
     J.jugando = false;
+    J.congelado = false;
     mirada.activo = false;
 
     /* Bel entra caminando UNA sola vez, al principio del sueno. Despues se
@@ -464,11 +467,14 @@
     }
 
     // El texto entra cuando la transformación ya se ve.
-    luego(2400, function () {
-      // Si vio lo que el lugar escondía, eso es lo que cuenta; si no, la acción.
-      var dicho = J.vioAhora || c.accion;
-      J.vioAhora = null;
-      decir(dicho, function () {
+    /* Como sigue el paso una vez dicho todo lo que habia que decir. Puede
+       llamarlo el reloj —cuando no se encontro nada— o el indicio, si se
+       encontro: por eso la guarda, para que no corra dos veces. */
+    var yaSiguio = false;
+    J.seguirPaso = function () {
+      if (yaSiguio) return;
+      yaSiguio = true;
+      decir(c.accion, function () {
         // decir() ya espero lo que se tarda en leerlo; esto es el respiro.
         luego(1100, function () {
           /* Normalmente el bucle de dibujo ya lo movio, apenas termino la
@@ -482,6 +488,13 @@
           else llegar(false);
         });
       });
+    };
+
+    /* El texto entra cuando la transformacion ya se ve — salvo que se haya
+       encontrado algo, y entonces el indicio va primero y manda el. */
+    luego(2400, function () {
+      if (J.congelado || J.vioAhora) return;
+      J.seguirPaso();
     });
   }
 
@@ -692,6 +705,20 @@
       J.errosSeguidos = 0;
       mostrarAviso('encontraste algo que no cierra', 'bien');
       Audio2.acierto();
+
+      /* El mundo se frena y se dice lo que este lugar escondia, con la figura
+         vieja todavia delante — no despues de la transformacion, cuando el
+         lugar ya es otro. */
+      if (J.vioAhora) {
+        var visto = J.vioAhora;
+        J.congelado = true;
+        decir(visto, function () {
+          J.congelado = false;
+          J.vioAhora = null;
+          // Lo que falte de transformacion, y despues el texto de la carta.
+          luego(1300, function () { if (J.seguirPaso) J.seguirPaso(); });
+        });
+      }
     } else {
       J.errosSeguidos = (J.errosSeguidos || 0) + 1;
       /* Decir QUE se perdio. "Eso ya no lo vas a ver" hablaba de una cosa que
@@ -784,7 +811,11 @@
       bel.vx = 0;
     }
 
-    if (J.u < 1) {
+    /* Mientras se lee lo que el lugar escondia, la transformacion se queda
+       quieta: el indicio es de la figura que TODAVIA esta ahi, y si el mundo
+       sigue mutando mientras se lee, el texto termina hablando de un lugar que
+       ya no esta en pantalla. */
+    if (J.u < 1 && !J.congelado) {
       J.u = Math.min(1, J.u + dt * .42 * RITMO);
       if (J.u >= 1 && J.destino) {
         J.destello = 1;
