@@ -1,4 +1,4 @@
-# El segundo de más
+# El instante psicodélico
 
 > **Estado: Activo** — en desarrollo.
 > Se llamó *Duermevela* hasta el 28/08/2026. El nombre viejo sigue apareciendo en
@@ -28,9 +28,9 @@ al final un arcano que no está en el mazo.
 
 | Para qué | Cómo |
 |---|---|
-| Jugar | Abrir `dist/el-segundo-de-mas.html` — un archivo, sin servidor |
+| Jugar | Abrir `dist/el-instante-psicodelico.html` — un archivo, sin servidor |
 | Desarrollar | `py -3 tools/servidor.py 8139` y entrar a `localhost:8139/index.html` |
-| Empaquetar | `py -3 tools/build.py index.html dist/el-segundo-de-mas.html` |
+| Empaquetar | `py -3 tools/build.py index.html dist/el-instante-psicodelico.html` |
 
 El servidor de desarrollo además recibe capturas del canvas por POST y las
 escribe en `tools/capturas/`, que es cómo se revisan los renders sin depender de
