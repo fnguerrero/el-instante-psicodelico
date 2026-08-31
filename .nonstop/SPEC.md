@@ -1,52 +1,72 @@
-# El instante — tanda 3: las 100 mejoras
-
-> Tandas 1 y 2 archivadas en `.nonstop/tanda1/` y `.nonstop/tanda2/`.
-> La bitácora es continua desde #0.
+# SPEC — tanda 4: llevar la psicodelia al extremo
 
 ## Objetivo
 
-Nico pidió cien mejoras: pulido general de todo. El juego ya funciona de punta a
-punta (8 pasos, recorrido ramificado, indicios, naipes de Marsella, carta final
-para Bel). Esta tanda no agrega mecánicas: levanta el piso de calidad en todo lo
-que se toca — claridad, bugs, presentación, sonido, textos, accesibilidad,
-rendimiento.
+Que "El instante psicodélico" merezca el nombre. Hoy tiene cinco efectos
+enganchados a la tensión y se ve bien, pero es contenido: se lee como el juego
+original con un filtro encima. La tanda apunta a que el mundo se vaya de verdad
+— color, deformación, rastro, partículas y audio reactivo — sin perder lo que
+hace que el juego funcione: que las figuras se reconozcan y que el instante se
+pueda acertar.
+
+50 modificaciones concretas.
 
 ## Alcance
 
-**Entra:** las 100 mejoras numeradas del TODO, agrupadas por tema.
+**Entra**: todo lo visual y sonoro de la variante psicodélica. El pipeline de
+post-proceso, la paleta, las partículas, el audio reactivo, los naipes, la
+portada, el cierre, y los controles de intensidad y rendimiento.
 
-**No entra:** mecánicas nuevas, más lugares o cartas, cambiar el género del
-juego, publicar o commitear.
+**No entra**: cambiar el guion, los lugares, los arcanos ni la mecánica. La
+ruta, los indicios, los cuatro finales y la carta a Bel quedan exactamente como
+están. Tampoco entra tocar `ElInstante-original` ni `ElInstante-v3`: son de
+otras sesiones.
+
+## Stack y decisiones
+
+Sigue igual: HTML + JS + Canvas 2D, cero dependencias, cero archivos de imagen
+o audio. Todo dibujado o sintetizado en código.
+
+Decisión estructural: `psicodelia.js` pasa de ser cinco funciones sueltas a un
+**pipeline de capas** con presupuesto de tiempo. Cada efecto es una capa que
+declara su costo y su umbral de tensión; el pipeline las corre en orden y apaga
+las caras si el cuadro se pasa de presupuesto. Sin eso, 50 efectos encima del
+mismo canvas terminan en una presentación de diapositivas.
 
 ## Supuestos
 
-1. **Se agrupan varias mejoras por iteración.** 100 mejoras no entran en 40
-   iteraciones de a una; van de a 2 o 3 por tema afín, verificadas juntas.
-2. **Ninguna mejora puede romper lo que anda.** Después de cada grupo se corre
-   la batería (auditar, verificarDibujo, verificarBases, una partida completa).
-3. **Prioridad cuando algo no entra:** claridad y bugs primero, presentación y
-   textos después, rendimiento último. Es el orden en que el jugador los nota.
-4. **Accesibilidad sin dependencias**: foco visible, roles ARIA, contraste y
-   `prefers-reduced-motion`. Nada de librerías.
-5. **El juego se llama `El segundo de más`** desde el 30/08/2026, y la carpeta
-   es `ElSegundoDeMas`. El título sale del final del juego — «te quedaste el
-   segundo de más que la mayoría no se queda» — así que nombra la mecánica y a
-   la vez lo que el juego le dice a Bel de ella. Ojo con una confusión fácil:
-   adentro del código, `Instante` sigue siendo el módulo de la mecánica del
-   momento justo, y eso NO se renombra. Los nombres anteriores (Duermevela,
-   El instante) quedan en los informes viejos: son el registro de cuando el
-   proyecto se llamaba así.
+Decisiones tomadas por criterio propio, sin preguntar:
+
+1. **La tensión sigue mandando.** Ningún efecto arranca a full: todos escalan
+   con lo descubierto. El juego tiene que arrancar reconocible y terminar
+   irreconocible, porque esa progresión es la única que cuenta algo.
+2. **Reconocible gana a flashero.** Si un efecto hace que no se distinga qué
+   figura hay delante, se baja hasta que se distinga. El juego se sigue
+   jugando; si no se ve el instante, no hay juego.
+3. **Intensidad configurable, con tres niveles** (suave / normal / extremo),
+   guardada en localStorage. El default es normal.
+4. **Con `prefers-reduced-motion` queda solo el color, quieto.** Ningún
+   movimiento, ninguna partícula, ningún parpadeo. No es negociable.
+5. **Nada de estroboscopio.** Ningún efecto puede producir destellos rápidos de
+   pantalla completa: es la única forma en que un juego bonito manda a alguien
+   al hospital. Los pulsos se limitan a 3 Hz y a cambios parciales de pantalla.
+6. **Presupuesto de 6 ms por cuadro** para todo el post-proceso, sobre los 16,7
+   disponibles. Lo que se pase, se apaga solo.
 
 ## Criterios de aceptación
 
-1. Al menos 85 de las 100 mejoras cerradas y marcadas.
-2. Partida completa sin errores en consola, con la batería en verde.
-3. Ningún desborde ni colisión de layout en 390x760, 1395x920 y 1532x783.
-4. Toda mejora marcada `[x]` tiene su verificación registrada en la bitácora.
-5. `dist/el-instante.html` se abre solo y juega completo.
-6. Cero regresiones: los criterios de la tanda 2 siguen pasando (cama solo al
-   final, La Muerte fuera de la primera mano, recorridos variados, 4 finales).
+Verificables, no opinables:
+
+1. Las 50 modificaciones están implementadas y anotadas en la bitácora.
+2. `verificarBases()`, `verificarDibujo()` y `auditar()` dan `ok: true`.
+3. Las 14 figuras se dibujan sin excepciones a intensidad extrema.
+4. El post-proceso completo se mantiene bajo 6 ms por cuadro a intensidad
+   normal, medido sobre 30 cuadros.
+5. Con `prefers-reduced-motion` no queda ningún efecto de movimiento activo.
+6. Ningún efecto de pantalla completa cambia más rápido que 3 Hz.
+7. El juego arranca y termina: se llega del primer lugar a la carta final.
+8. Cero errores en consola en una partida completa.
 
 ## Presupuesto
 
-40 iteraciones.
+40 iteraciones. Las 50 modificaciones se agrupan de a 2-4 por iteración.

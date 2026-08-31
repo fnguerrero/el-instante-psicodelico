@@ -78,9 +78,19 @@
     relojes.push(id);
     return id;
   }
+  /* Los intervalos de la pantalla final se guardan aparte: no son timeouts de
+     la partida y frenarRelojes() no los alcanza. Sin esto, volver a jugar deja
+     el repintado anterior corriendo para siempre. */
+  var relojesFinal = [];
+  function frenarFinal() {
+    relojesFinal.forEach(clearInterval);
+    relojesFinal = [];
+  }
+
   function frenarRelojes() {
     relojes.forEach(clearTimeout);
     relojes = [];
+    frenarFinal();
   }
 
   /* ---------- estado ---------- */
@@ -401,6 +411,7 @@
     if (J.paso >= Guion.PASOS) {
       destino = 'cama';
       Audio2.tensar(1);
+      if (Audio2.fondo) Audio2.fondo(1, J.climax);
     } else {
       destino = Guion.destino(c.clave, J.lugar);
       // Red de seguridad: nada que no sea el final puede llevar a la cama.
@@ -572,8 +583,21 @@
     // Pintar despues de que la caja tenga tamano.
     luego(60, function () {
       var A = medirLienzo(frente), B = medirLienzo(dorso);
-      Naipes.dibujar(A.c2, f.clave, f.num, f.nombre, A.an, A.al, f.lectura, f.astro);
-      Naipes.dorso(B.c2, B.an, B.al);
+      /* La carta del final es la unica que se anima de verdad: se repinta a
+         ~20 por segundo para que el nacar corra por el filete. Son dos laminas
+         chicas y es la ultima pantalla del juego, asi que el gasto se puede
+         pagar; hacerlo con las tres de la mano durante toda la partida no. */
+      var tNacar = 0;
+      function repintarFinal() {
+        tNacar += .05;
+        Naipes.dibujar(A.c2, f.clave, f.num, f.nombre, A.an, A.al, f.lectura, f.astro);
+        Naipes.nacar(A.c2, A.an, A.al, tNacar, .85);
+        Naipes.dorso(B.c2, B.an, B.al);
+        Naipes.nacar(B.c2, B.an, B.al, tNacar + 1.5, .7);
+      }
+      repintarFinal();
+      var latido = setInterval(repintarFinal, 50);
+      relojesFinal.push(latido);
       // Y recien ahi darla vuelta.
       luego(700, function () {
         caja.classList.add('dada');
@@ -652,6 +676,7 @@
         J.vioAhora = J.esconde;
         J.tension = Math.min(1, J.indicios.length / (Guion.PASOS - 1));
         Audio2.tensar(J.tension);
+        if (Audio2.fondo) Audio2.fondo(J.tension, J.climax);
         var iP = J.perdidos.indexOf(J.esconde);
         if (iP !== -1) J.perdidos.splice(iP, 1);
         // Que el marcador se mueva: si no, sumar un indicio no se siente.
@@ -759,6 +784,7 @@
       J.u = Math.min(1, J.u + dt * .42 * RITMO);
       if (J.u >= 1 && J.destino) {
         J.destello = 1;
+        Psicodelia.evento('lugar');
         /* Apenas termina la mutacion, el lugar pasa a ser el destino. Antes
            esto esperaba al callback que avanza de paso — cinco segundos mas
            tarde — y en el medio se volvia a dibujar la figura vieja: se veia
@@ -871,6 +897,17 @@
        createRadialGradient tira IndexSizeError y no se dibuja nada. */
     var E = Math.max(W * .08, Math.min(vertical ? W * .36 : W * .27, cabe));
     var fy = alturaDe(J.lugar, J.destino, J.u, piso, E);
+    /* Las capas de la psicodelia necesitan saber donde esta la figura y de que
+       color es el lugar: sin esto solo pueden hacer efectos de pantalla
+       completa, que son justamente los que se notan como filtro pegado. */
+    Psicodelia.escena({ fx: fx, fy: fy, E: E, piso: piso, color: J.color,
+                        lugar: J.lugar, belX: J.belX, u: J.u });
+    // Que la imagen lata con lo que suena. Si el audio esta apagado devuelve 0
+    // y las capas que lo usan simplemente no hacen nada.
+    /* Audio2 y no Audio: el modulo se llama asi justamente porque 'Audio' es el
+       constructor nativo del navegador. Escrito 'Audio' esto no falla, no hace
+       nada — que es peor, porque parece andar. */
+    if (Audio2.nivelGrave) Psicodelia.alimentarAudio(Audio2.nivelGrave());
     /* Las figuras se mueven mas rapido cuanto mas descubierto esta el sueno.
        No es un efecto encima: es la misma animacion, acelerada, y por eso se
        lee como que el lugar se puso nervioso y no como un filtro. */
@@ -1090,12 +1127,22 @@
        incluidas. El filtro de color va en el elemento y no en el contexto
        porque lo aplica el compositor y sale gratis. */
     Psicodelia.despues(cx, cv, W, H, t, J.tensionSuave, J.climax);
+    /* El halo de las cartas sigue a la tension igual que todo lo demas. Se
+       escribe en el contenedor y las tres cartas lo heredan: escribir en cada
+       carta por cuadro toca el layout tres veces en vez de una. */
+    var halo = Math.min(.85, Psicodelia.grado(J.tensionSuave, J.climax) * .5);
+    if (Math.abs(halo - haloPuesto) > .02) {
+      elMano.style.setProperty('--halobase', halo.toFixed(2));
+      elMano.style.setProperty('--halo', halo.toFixed(2));
+      haloPuesto = halo;
+    }
+
     var filtro = Psicodelia.filtroCss(t, J.tensionSuave, J.climax);
     if (filtro !== filtroPuesto) { cv.style.filter = filtro; filtroPuesto = filtro; }
 
     if (!sinBucle) requestAnimationFrame(cuadro);
   }
-  var filtroPuesto = 'none';
+  var filtroPuesto = 'none', haloPuesto = -1;
   requestAnimationFrame(cuadro);
 
   /* ---------- sonido ---------- */
@@ -1136,9 +1183,19 @@
       { method: 'POST', body: cv.toDataURL('image/png') });
   };
 
+  /* Ganchos de la psicodelia, para poder verificarla sin manos: cambiar el
+     nivel, leer que capas estan vivas y cuanto sale cada una. */
+  window.psico = function (nivel) { return Psicodelia.ponerNivel(nivel); };
+  window.psicoEstado = function () { return Psicodelia.estado(); };
+  window.psicoCosto = function () { return Psicodelia.costo(); };
+
   window.instante = function (figura, nombre, opciones) {
     opciones = opciones || {};
     if (figura) { J.lugar = figura; J.u = 1; J.destino = null; }
+    /* El color lo trae la carta que te dejo en este lugar, no el lugar. En una
+       partida lo setea el juego al mutar; para poder capturar un lugar suelto
+       hay que poder pasarlo a mano. */
+    if (opciones.color && !opciones.destino) J.color = opciones.color;
     if (opciones.destino) {
       J.pares = Figuras.preparar(J.lugar, opciones.destino);
       J.destino = { figura: opciones.destino, color: opciones.color || '200,200,255' };
@@ -1214,6 +1271,7 @@
     mirada.resuelto = true;
     mirada.resultado = acierta ? 'clavado' : 'tarde';
     if (acierta) mirada.destello = 1; else mirada.fallo = 1;
+    Psicodelia.evento(acierta ? 'acierto' : 'fallo');
     resolverMirada();
     return mirada.resultado;
   };

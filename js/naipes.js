@@ -1152,7 +1152,34 @@ var Naipes = (function () {
     }
   }
 
-  return { dibujar: dibujar, dorso: dorso, ARCANOS: ARCANOS };
+  /* El nacar del filete.
+
+     Las laminas de tarot no brillan, y estas tampoco deberian brillar solas: el
+     nacar existe porque el mundo alrededor esta deformandose y una carta
+     perfectamente quieta en el medio se ve pegada encima. Es lo minimo para que
+     la carta pertenezca a la escena, no un adorno.
+
+     Se llama aparte y no desde dibujar() porque las cartas se pintan una vez y
+     se guardan como imagen; el brillo tiene que poder animarse por cuadro sin
+     obligar a redibujar la lamina entera. */
+  function nacar(cx, An, Al, t, fuerza) {
+    if (!fuerza || fuerza <= .01) return;
+    var m = Math.max(3, An * .035);
+    var giro = (t * 40) % 360;
+    var g = cx.createLinearGradient(0, 0, An, Al);
+    for (var i = 0; i <= 3; i++) {
+      g.addColorStop(i / 3, 'hsla(' + ((giro + i * 90) % 360) + ',95%,68%,' +
+                     (fuerza * .55).toFixed(3) + ')');
+    }
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.strokeStyle = g;
+    cx.lineWidth = Math.max(1.4, An * .014);
+    cx.strokeRect(m, m, An - m * 2, Al - m * 2);
+    cx.restore();
+  }
+
+  return { dibujar: dibujar, dorso: dorso, nacar: nacar, ARCANOS: ARCANOS };
 })();
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = Naipes; }

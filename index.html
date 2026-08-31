@@ -127,6 +127,35 @@
   .carta{box-shadow:0 16px 44px rgba(0,0,0,.68),
                     0 0 26px 10px rgba(8,6,18,.55),
                     inset 0 1px 0 rgba(255,235,190,.10)}
+
+  /* El halo de color de las cartas.
+
+     Va por CSS y no por canvas a proposito: las laminas se pintan una vez y se
+     guardan como imagen, asi que animarlas obligaria a redibujar tres cartas
+     enteras por cuadro. El compositor hace esto gratis.
+
+     Con el sueno mas descubierto el halo late mas fuerte; la variable la mueve
+     el juego. */
+  .carta{--halo:0}
+  .carta::after{content:'';position:absolute;inset:-6%;border-radius:12px;
+    pointer-events:none;z-index:-1;opacity:calc(var(--halo) * .85);
+    background:conic-gradient(from var(--halogiro,0deg),
+      #ff5fa2,#ffd166,#7bffb0,#5fd0ff,#c084ff,#ff5fa2);
+    filter:blur(14px);
+    transition:opacity .8s ease}
+  .carta{position:relative;isolation:isolate}
+  @keyframes halogirar{to{--halogiro:360deg}}
+  @property --halogiro{syntax:'<angle>';initial-value:0deg;inherits:false}
+  .carta{animation:halogirar 9s linear infinite}
+
+  /* La carta bajo el cursor levanta el halo: da la pista de que se puede jugar
+     sin agregar ningun cartel. */
+  .carta:hover{--halo:calc(var(--halobase,0) + .35)}
+
+  @media (prefers-reduced-motion:reduce){
+    .carta{animation:none}
+    .carta::after{opacity:calc(var(--halo) * .4)}
+  }
   /* Al jugar, las dos que quedan se van hacia abajo y la elegida sale hacia la
      figura: el gesto cuenta que una se uso y las otras se descartaron. */
   #mano.fuera .carta{pointer-events:none;opacity:0;transform:translateY(60px) scale(.9)}
@@ -166,6 +195,32 @@
     background:rgba(9,7,16,.62);border:1px solid rgba(212,180,120,.20);
     border-radius:3px;padding:10px 14px 9px}
   #marcador.ver{opacity:1}
+
+  /* El marcador y el titulo comparten el mismo texto de color: es el mismo
+     mundo el que se esta yendo, y que la interfaz se quede en gris mientras la
+     escena delira la deja pegada encima como si fuera de otro programa.
+
+     El relleno va en el texto (background-clip) en vez de ser un color plano,
+     asi que las letras llevan el degrade adentro. */
+  @keyframes correrColor{to{background-position:220% 0}}
+  #marcador .titu, .titulo{
+    background:linear-gradient(100deg,#ffd166,#ff5fa2,#c084ff,#5fd0ff,#7bffb0,#ffd166);
+    background-size:220% 100%;
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;color:transparent;
+    animation:correrColor 14s linear infinite}
+  .titulo{animation-duration:22s}
+
+  /* La portada respira con el mismo latido que el juego. */
+  @keyframes latirPortada{
+    0%,100%{filter:saturate(1) hue-rotate(0deg)}
+    50%{filter:saturate(1.35) hue-rotate(22deg)}}
+  #portada{animation:latirPortada 19s ease-in-out infinite}
+
+  @media (prefers-reduced-motion:reduce){
+    #marcador .titu,.titulo{animation:none}
+    #portada{animation:none}
+  }
   #marcador .rotu{margin:0 0 7px;font-size:11px;letter-spacing:.22em;
     text-transform:uppercase;color:rgba(220,178,108,.72)}
   #marcador .paso{margin:7px 0 0;font-size:10px;letter-spacing:.16em;
@@ -477,6 +532,8 @@
     title="Sonido"><span id="sonidoIcono">♪</span></button>
   <input id="vol" class="vol" type="range" min="0" max="100" value="90"
     aria-label="Volumen" title="Volumen">
+  <button id="intensidad" class="sonido" title="Cuánto se deforma el sueño"
+    aria-label="Intensidad de la psicodelia"><span id="intensidadIcono">◐</span></button>
 </div>
 
 <div id="cierre"></div>
@@ -514,7 +571,35 @@
 <script src="js/pintores.js"></script>
 <script src="js/instante.js"></script>
 <script src="js/audio.js"></script>
+<script>
+/* El control de intensidad cicla entre los tres niveles y se acuerda del
+   elegido. Va con el de sonido y no en un menu aparte: son las dos cosas que
+   alguien puede querer bajar sin dejar de jugar, y merecen estar igual de a
+   mano. El icono muestra cuanto pega: un cuarto, medio, lleno. */
+window.addEventListener('DOMContentLoaded', function () {
+  var b = document.getElementById('intensidad');
+  var ico = document.getElementById('intensidadIcono');
+  if (!b || !window.Psicodelia) return;
+  var orden = ['suave', 'normal', 'extremo'];
+  var iconos = { suave: '◔', normal: '◐', extremo: '●' };
+  function pintar() {
+    var n = Psicodelia.nivel;
+    ico.textContent = iconos[n] || '◐';
+    b.setAttribute('aria-pressed', n === 'extremo' ? 'true' : 'false');
+    b.title = 'Cuánto se deforma el sueño: ' + n;
+  }
+  b.addEventListener('click', function () {
+    var i = orden.indexOf(Psicodelia.nivel);
+    Psicodelia.ponerNivel(orden[(i + 1) % orden.length]);
+    pintar();
+  });
+  pintar();
+});
+</script>
 <script src="js/psicodelia.js"></script>
+<script src="js/psicocapas.js"></script>
+<script src="js/psicocolor.js"></script>
+<script src="js/psicoparticulas.js"></script>
 <script src="js/naipes.js"></script>
 <script src="js/guion.js"></script>
 <script src="js/juego.js"></script>

@@ -1,146 +1,138 @@
-# Informe — El instante, tanda 3: las 100 mejoras
+# INFORME — tanda 4: 50 modificaciones psicodélicas
 
-> Tandas 1 y 2 en `.nonstop/tanda1/` y `.nonstop/tanda2/`. Bitácora continua.
+## Qué se construyó
 
-## Qué se hizo
+"El instante psicodélico" dejó de ser el juego original con un filtro encima.
+Ahora tiene **17 capas de efecto** organizadas en un pipeline propio, y todas
+escalan con la misma tensión que el juego ya llevaba: el primer lugar se ve casi
+sobrio y para el octavo el mundo es otra cosa. Esa progresión es lo único que
+cuenta algo — un efecto que está siempre al mango no dice nada.
 
-Nico pidió cien mejoras de pulido general. Se cerraron **las 100**, agrupadas en
-32 lotes por tema y verificadas por lote. No se agregó ninguna mecánica: la
-tanda levantó el piso de todo lo que ya existía.
+### Cómo correrlo
 
-**Cómo probarlo:** abrir `dist/el-instante.html`. Un archivo, sin servidor.
+```
+py -3 tools/servidor.py 8144
+```
 
-## Las 100, por grupo
+y abrir `http://localhost:8144/index.html`. O directamente
+`dist/el-instante-psicodelico.html`, que es un archivo suelto sin servidor.
 
-**Bugs y robustez (1-14).** Todos los temporizadores pasan por un registro
-cancelable — sin eso, reiniciar dejaba vivos los de la partida anterior y el
-juego avanzaba dos veces por paso. Guard contra doble click. El toque ya no
-atraviesa el cierre ni la carta final. El teclado no roba Enter cuando el foco
-está en un control. Tope de 14 voces de audio con liberación real de nodos (el
-grafo crecía toda la partida). El contexto de audio se retoma al volver a la
-pestaña. DPR limitado en pantallas enormes; los naipes no se repintan si el
-hueco no cambió.
+El botón junto al de sonido cicla la intensidad: **◔ suave · ◐ normal · ● extremo**.
 
-**Claridad (15-28).** Es lo que Nico venía marcando tres veces. El objetivo
-vivía en el código y no en la pantalla: ahora hay un marcador permanente
-("Lo que no cierra", una bolita por paso), una guía de una sola vez pegada al
-anillo en la primera jugada, avisos que dicen qué hacer y qué se ganó o perdió,
-y un cierre que **lista lo que encontró**. Además la ventana del instante se
-agranda tras tres fallos seguidos y lo dice: el juego no es de puntería, la
-puntería es la excusa para que mirar tenga peso.
+### Las capas
 
-**Presentación (29-50).** Reflejo de la figura en el piso, niebla baja, sombra
-bajo Bel, vineteado, halo por figura con su color, golpe de luz al completar la
-mutación. La carta jugada sale hacia la figura y las otras dos caen. Pila del
-mazo restante al costado — sin eso no había forma de saber que las cartas se
-gastan, que es de lo que trata elegir. Título que respira, cierre que entra por
-párrafos, resplandor detrás de la carta final.
+**Color y luz** — tinte del cielo con mezcla `color` (se lleva el tono y respeta
+las luces), plasma de tres gradientes que orbitan, rayos girando detrás de la
+figura, contraluz en el horizonte, aura de la figura, halo de Bel, suelo con el
+complementario, viñeta de color en vez de negra, anillo arcoíris al acertar,
+inversión que barre en el clímax.
 
-**Naipes (51-64).** Grano de papel con semilla estable por carta, manchas,
-desgaste del filete y registro imperfecto — un fantasma corrido, como una
-impresión de tacos donde cada plancha caía un pelo desplazada. El Loco ganó un
-perro reconocible y un hatillo de tela; El Mundo, guirnalda de hojas y cuatro
-vivientes con silueta propia; La Rueda, criaturas que suben y bajan. Numeral y
-cartela con relieve. Dorso con orla.
+**Deformación** — dos pasadas, filas para el eje X y columnas para el Y, con
+onda, remolino alrededor de la figura, barril, rotación, respiración y temblor
+sumados en el mismo desplazamiento. Aparte: separación de canales rojo/cian,
+caleidoscopio durante la transformación, ondas concéntricas al cambiar de lugar,
+glitch por bloques y espejo intermitente.
 
-**Escena (65-76).** Durmientes y un vagón parado en la montaña rusa; sendero de
-piedras en la casa; juncos a los costados de la laguna; rocas al pie del faro;
-ventanas en la cúpula del platillo; mesa de luz con velador junto a la cama;
-péndulo con vaivén propio en el reloj.
+**Partículas** — un solo sistema con arreglo fijo y reciclado: polvo del aire,
+chispas al acertar, caída al fallar, anillo al cambiar de lugar, rastro de Bel y
+lluvia en el clímax.
 
-**Sonido (77-87).** Cada uno de los 14 lugares reafina el colchón al llegar, con
-sus grados y su filtro. Tic del anillo que se agudiza al acercarse a la marca —
-permite acertar sin mirar la pantalla. Acierto como acorde ascendente y error
-como nota que cae, que antes eran dos gotas casi iguales. Roce de papel en el
-volteo de la carta final. Control de volumen que aparece al acercarse al botón.
+**Audio** — analizador colgado en paralelo del maestro para que la imagen lata
+con la música, drone sub-grave que sube con la tensión y shimmer que solo
+aparece en el clímax.
 
-**Textos (88-94).** Auditoría automática de los 42 textos: largos, arranques
-repetidos y muletillas. Encontró un texto con tres "que" apilados y el más largo
-del platillo; los dos reescritos.
-
-**Accesibilidad (95-100).** Foco visible sobre cualquier fondo, roles ARIA con
-live regions, canvas oculto al lector de pantalla, partida completa solo con
-teclado. `prefers-reduced-motion` **acorta** las transiciones en vez de
-anularlas: lo que comunica algo tiene que seguir viéndose; lo que se apaga es lo
-decorativo.
+**Interfaz** — halo de color en las cartas, nácar animado en la carta final,
+título y marcador con el degradado corriendo dentro de las letras, portada que
+respira, y el control de intensidad.
 
 ## Verificación
 
 | Criterio | Resultado |
 |---|---|
-| 1 · 85 de 100 mejoras | **100 de 100** cerradas |
-| 2 · Partida sin errores | Batería en verde; partida completa a cierre y carta final, 0 errores |
-| 3 · Sin desbordes en 3 formatos | 390x760, 1395x920 y 1532x783: 0 elementos fuera, 0 colisiones, sin scroll horizontal |
-| 4 · Verificación registrada | Los 18 asientos de bitácora (#51-#67) llevan su verificación |
-| 5 · Bundle autónomo | `dist/el-instante.html`, 257 KB, se abre solo |
-| 6 · Sin regresiones | La Muerte 0 de 250 repartos en la primera mano; 4 finales distintos; cama solo al final; auditar/verificarDibujo/verificarBases en verde |
+| 1 · 50 modificaciones implementadas | 51 de 53 ítems `[x]`, ninguno bloqueado |
+| 2 · `verificarBases` / `verificarDibujo` / `auditar` | los tres en `ok: true` |
+| 3 · 14 figuras a intensidad extrema | 14/14 sin excepciones, 0 capas caídas por error |
+| 4 · post-proceso bajo 6 ms | **0,54 ms** a normal, 0,79 a extremo, sobre 30 cuadros |
+| 5 · reduced-motion sin movimiento | 13 de 17 capas se apagan; las 4 que quedan dan el mismo cuadro en t=3 y t=400 |
+| 6 · nada por encima de 3 Hz | pedir 60 Hz devuelve 3,1 |
+| 7 · el juego arranca y termina | partida completa: 8 pasos, cierre alcanzado, cama solo al final |
+| 8 · cero errores en consola | 0 en la partida completa |
 
-## El bug que apareció en la verificación final
-
-El cierre del juego quedaba **vacío** y el juego moría en la última pantalla.
-
-Causa: al agregar el gesto de la carta elegida (mejora 42), usé un reemplazo de
-texto que pisó **las dos** apariciones de `elMano.classList.add('fuera')` — la
-de `jugar()` y la de `terminar()`, donde la variable `elCarta` no existe.
-`terminar()` reventaba con `elCarta is not defined` justo después de ocultar el
-marcador, así que el síntoma era "el juego llega a 8 de 8 y no pasa nada".
-
-Arreglado, y el build ahora falla si esa referencia aparece más de una vez.
-
-**Dos verificaciones mías estaban mal antes de encontrarlo**, y vale anotarlo:
-una esperaba 2,8 s por ciclo cuando el ciclo real dura 7,6 s, y clickeaba cartas
-viejas; la otra leía el resultado antes de que el cierre llegara. Las dos
-"probaban" que algo fallaba sin decir qué. Reescritas para esperar a que la mano
-vuelva de verdad en vez de asumir tiempos fijos.
-
-## Tres correcciones posteriores, sobre reportes de Nico
-
-Llegaron mientras se cerraba la tanda y se arreglaron en el momento:
-
-1. **El aviso no se leia.** Caia encima de las cartas: texto claro sobre el
-   crema del naipe. Relato y aviso pasaron a un mismo bloque apilado arriba, en
-   el cielo, y el aviso gano fondo propio. Verificado a 804x910: aviso 174-206
-   bajo el relato 72-155, sin pisar las cartas.
-
-2. **"Eso ya no lo vas a ver" no se entendia.** Nico pregunto a que se referia y
-   tenia razon: la frase hablaba de algo que el jugador nunca vio, asi que no se
-   referia a nada. Ahora dice *"este lugar escondia algo y ya no vas a saber
-   que"*, y los perdidos se cuentan y se informan en el cierre sin revelarlos.
-   Verificado: fallar-acertar-fallar deja 1 indicio y 2 perdidos.
-
-3. **Bel se teletransportaba.** En cada paso, `llegar()` la reposicionaba fuera
-   de cuadro para que "entrara caminando", pero la figura se transforma delante
-   de ella y no hay cambio de plano: se veia como un salto. Ahora entra una sola
-   vez, al principio, y despues se acomoda caminando en la direccion que haga
-   falta.
+Cuadro completo con las 17 capas: **1,03 ms** sobre los 16,7 disponibles para 60
+por segundo.
 
 ## Decisiones tomadas por criterio propio
 
-1. **Las mejoras se agruparon de a 2-3.** Cien ítems de a uno no entran en 40
-   iteraciones; se verificaron por lote afín.
-2. **La dificultad afloja sola.** Tres fallos seguidos agrandan la ventana de
-   399 a 699 ms y se avisa. Castigar la mala puntería dejaba afuera a quien el
-   juego quiere adentro.
-3. **`prefers-reduced-motion` no anula todo.** Acorta a 0,14 s y apaga solo lo
-   decorativo (título que respira, botón que late). Anular las transiciones que
-   comunican estado habría dejado el juego ilegible para quien las necesita.
-4. **El tic del anillo es la pista principal.** Con él se puede acertar de oído,
-   que es más accesible que depender de la vista fina.
-5. **Semillas fijas en toda textura.** Papel, desgaste, juncos y rocas usan
-   generador con semilla: sin eso, cada repintado los cambia y la imagen hierve.
+**El color sale del lugar, no de un arcoíris genérico.** Cada lugar tiene su
+color en el guion y de ahí se saca el tono raíz de la rueda, así la laguna se va
+al azul y la calesita al naranja. Verificado: cuatro lugares dan cuatro tonos
+distintos (60, 221, 265, 234) donde antes daban el mismo.
 
-## Desvíos respecto de la SPEC
+**Todas las deformaciones geométricas viven en una sola capa.** Encadenar capas
+que deforman obliga a copiar el cuadro entero entre cada dos, y esas copias
+cuestan más que todos los efectos juntos. En una pasada se lee una vez y se
+escribe una vez, con los efectos sumados en el desplazamiento de cada tira.
 
-Uno solo, y hacia arriba: la SPEC pedía **85 de 100** y se cerraron **las 100**.
-No hubo mejoras descartadas ni bloqueadas.
+**El tinte va después del cielo y antes de las figuras.** Al final, la calesita
+roja y la casa amarilla terminaban del mismo color que el fondo y el lugar
+dejaba de reconocerse.
 
-## Bloqueados
+**Reconocible gana a flashero, y costó aplicarlo.** La primera versión de los
+rayos dejaba la laguna como un trapecio oscuro en medio de un abanico. Es el
+supuesto 2 de la SPEC roto por mí mismo. Rayos más finos, con tope de opacidad y
+apagándose hacia afuera.
 
-Ninguno.
+**Dos reglas puestas como código y no como buena intención**: el tope de 3 Hz
+vive en una sola función por la que pasan todos los pulsos de pantalla completa,
+en vez de confiar en que cada capa se porte bien; y una capa que tira excepción
+se apaga sola en vez de llevarse el cuadro puesto.
 
-## Números
+## Desvíos de la SPEC
 
-- **18 iteraciones** de esta tanda (#50-#67), presupuesto 40.
-- 100 mejoras · 32 grupos · 1 bug serio encontrado y blindado.
-- 14 lugares · 15 cartas (14 del mazo + el arcano XXII) · 14 figuras.
-- `dist/el-instante.html`: 257 KB.
+**El ítem 25 (barril) cambió de forma.** Iba a ser una capa aparte; terminó
+metido en el ancho de destino del mismo `drawImage` de la deformación, o sea
+gratis y sin pasada extra.
+
+**El ítem 41 (naipes iridiscentes) se hace por CSS y no por canvas.** Las
+láminas se pintan una vez y se guardan como imagen: animarlas obligaría a
+redibujar tres cartas enteras por cuadro. El compositor lo hace gratis. La carta
+del final sí va por canvas, porque es una sola pantalla y ahí el gasto se paga.
+
+**El ítem 52 (miniaturas del portfolio) se hizo a medias, a propósito.** Se
+generaron las tres capturas del look final, pero **no se tocó `Portfolio/`**: esa
+entrada es de la versión original, que está en medio de una discusión de nombres
+y la lleva otra sesión. Meterle mano desde acá era exactamente lo que la regla de
+"una carpeta, un dueño" busca evitar.
+
+**No se agregaron ítems bloqueados.** Ninguno quedó en `[!]`.
+
+## Lo que la verificación encontró y no se habría visto de otra forma
+
+1. **El acierto emitía 26 chispas y sobrevivía una.** El reciclado elegía por
+   vida restante absoluta, y como las chispas viven medio segundo contra los
+   cinco del polvo, cada chispa nueva pisaba a la anterior. Ahora recicla por
+   proporción de vida y nunca reusa una nacida en el mismo cuadro.
+2. **`Audio.nivelGrave` en vez de `Audio2.nivelGrave`.** El módulo se llama
+   `Audio2` justamente porque `Audio` es el constructor nativo del navegador.
+   Escrito mal no fallaba: no hacía nada, que es peor porque parece andar.
+3. **El presupuesto apagaba las capas que más dibujan.** El canvas encola
+   comandos y de a ratos una capa paga el vaciado de todo lo anterior: `deformar`
+   medía 96 ms cuando su costo real es 0,23. Ahora se descartan 20 muestras de
+   calentamiento y los picos de más de 10× el promedio.
+4. **El repintado de la carta final quedaba vivo para siempre.** Es un
+   `setInterval`, no un timeout de la partida, y `frenarRelojes()` no lo
+   alcanzaba.
+
+**Cuatro veces la verificación falló y el error estaba en la prueba, no en el
+código**: medir el total de partículas cuando el sistema está en su tope (las
+ráfagas reciclan, el total no puede subir); registrar un evento y después saltar
+el reloj cuatro segundos; contar cruces de la onda en los dos sentidos sumando
+el borde del intervalo; y comparar el cuadro entero para juzgar reduced-motion
+cuando el humo de la casa se anima por su cuenta. En los cuatro casos se revisó
+la prueba antes de tocar el código. Dos veces más, un test se **salteó solo** y
+daba verde sin haber probado nada: el de audio sin gesto del usuario y el de las
+figuras con un nombre de módulo que no existía.
+
+## Iteraciones
+
+15 de un presupuesto de 40.
