@@ -127,6 +127,35 @@
   .carta{box-shadow:0 16px 44px rgba(0,0,0,.68),
                     0 0 26px 10px rgba(8,6,18,.55),
                     inset 0 1px 0 rgba(255,235,190,.10)}
+
+  /* El halo de color de las cartas.
+
+     Va por CSS y no por canvas a proposito: las laminas se pintan una vez y se
+     guardan como imagen, asi que animarlas obligaria a redibujar tres cartas
+     enteras por cuadro. El compositor hace esto gratis.
+
+     Con el sueno mas descubierto el halo late mas fuerte; la variable la mueve
+     el juego. */
+  .carta{--halo:0}
+  .carta::after{content:'';position:absolute;inset:-6%;border-radius:12px;
+    pointer-events:none;z-index:-1;opacity:calc(var(--halo) * .85);
+    background:conic-gradient(from var(--halogiro,0deg),
+      #ff5fa2,#ffd166,#7bffb0,#5fd0ff,#c084ff,#ff5fa2);
+    filter:blur(14px);
+    transition:opacity .8s ease}
+  .carta{position:relative;isolation:isolate}
+  @keyframes halogirar{to{--halogiro:360deg}}
+  @property --halogiro{syntax:'<angle>';initial-value:0deg;inherits:false}
+  .carta{animation:halogirar 9s linear infinite}
+
+  /* La carta bajo el cursor levanta el halo: da la pista de que se puede jugar
+     sin agregar ningun cartel. */
+  .carta:hover{--halo:calc(var(--halobase,0) + .35)}
+
+  @media (prefers-reduced-motion:reduce){
+    .carta{animation:none}
+    .carta::after{opacity:calc(var(--halo) * .4)}
+  }
   /* Al jugar, las dos que quedan se van hacia abajo y la elegida sale hacia la
      figura: el gesto cuenta que una se uso y las otras se descartaron. */
   #mano.fuera .carta{pointer-events:none;opacity:0;transform:translateY(60px) scale(.9)}
@@ -166,6 +195,32 @@
     background:rgba(9,7,16,.62);border:1px solid rgba(212,180,120,.20);
     border-radius:3px;padding:10px 14px 9px}
   #marcador.ver{opacity:1}
+
+  /* El marcador y el titulo comparten el mismo texto de color: es el mismo
+     mundo el que se esta yendo, y que la interfaz se quede en gris mientras la
+     escena delira la deja pegada encima como si fuera de otro programa.
+
+     El relleno va en el texto (background-clip) en vez de ser un color plano,
+     asi que las letras llevan el degrade adentro. */
+  @keyframes correrColor{to{background-position:220% 0}}
+  #marcador .titu, .titulo{
+    background:linear-gradient(100deg,#ffd166,#ff5fa2,#c084ff,#5fd0ff,#7bffb0,#ffd166);
+    background-size:220% 100%;
+    -webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent;color:transparent;
+    animation:correrColor 14s linear infinite}
+  .titulo{animation-duration:22s}
+
+  /* La portada respira con el mismo latido que el juego. */
+  @keyframes latirPortada{
+    0%,100%{filter:saturate(1) hue-rotate(0deg)}
+    50%{filter:saturate(1.35) hue-rotate(22deg)}}
+  #portada{animation:latirPortada 19s ease-in-out infinite}
+
+  @media (prefers-reduced-motion:reduce){
+    #marcador .titu,.titulo{animation:none}
+    #portada{animation:none}
+  }
   #marcador .rotu{margin:0 0 7px;font-size:11px;letter-spacing:.22em;
     text-transform:uppercase;color:rgba(220,178,108,.72)}
   #marcador .paso{margin:7px 0 0;font-size:10px;letter-spacing:.16em;
@@ -477,6 +532,8 @@
     title="Sonido"><span id="sonidoIcono">♪</span></button>
   <input id="vol" class="vol" type="range" min="0" max="100" value="90"
     aria-label="Volumen" title="Volumen">
+  <button id="intensidad" class="sonido" title="Cuánto se deforma el sueño"
+    aria-label="Intensidad de la psicodelia"><span id="intensidadIcono">◐</span></button>
 </div>
 
 <div id="cierre"></div>
@@ -3742,6 +3799,7 @@ var Audio2 = (function () {
 
   var ac = null;
   var maestro = null, aReverb = null, seco = null;
+  var analizador = null, datosFrec = null;
   var encendido = false;
   var colchon = null;
 
@@ -3792,6 +3850,20 @@ var Audio2 = (function () {
     maestro = ac.createGain();
     maestro.gain.value = 0;
     maestro.connect(ac.destination);
+
+    /* Analizador para que la imagen reaccione al sonido.
+
+       Cuelga del maestro y NO se interpone en el camino a los parlantes: un
+       nodo de analisis en serie no cambia el audio, pero un error al conectarlo
+       deja el juego mudo. Colgado en paralelo, si esto falla lo unico que pasa
+       es que la imagen no late. */
+    try {
+      analizador = ac.createAnalyser();
+      analizador.fftSize = 256;
+      analizador.smoothingTimeConstant = .75;
+      datosFrec = new Uint8Array(analizador.frequencyBinCount);
+      maestro.connect(analizador);
+    } catch (e) { analizador = null; }
 
     var rev = ac.createConvolver();
     rev.buffer = impulso(3.6, 2.6);
@@ -4320,7 +4392,67 @@ var Audio2 = (function () {
 
   }
 
+  /* Nivel de graves, de 0 a 1, para que la psicodelia lata con la musica.
+
+     Solo el primer cuarto del espectro: los agudos del juego son chirridos
+     cortos y harian parpadear la imagen en vez de hacerla respirar. */
+  /* Un sub-grave que crece con la tension y un shimmer que solo aparece en el
+     climax. Los dos cuelgan del reverb, no del seco: tienen que sonar como el
+     lugar y no como algo que se agrego encima.
+
+     Se crean una sola vez y despues solo se les mueve la ganancia; crear y
+     destruir osciladores por cada cambio de tension deja clicks. */
+  var drone = null, shimmer = null;
+  function armarFondo() {
+    if (!activo() || drone) return;
+    try {
+      var o = ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 38;
+      var g = ac.createGain();
+      g.gain.value = 0;
+      o.connect(g); g.connect(aReverb); g.connect(seco);
+      o.start();
+      drone = { o: o, g: g };
+
+      var o2 = ac.createOscillator();
+      o2.type = 'triangle';
+      o2.frequency.value = 2100;
+      var g2 = ac.createGain();
+      g2.gain.value = 0;
+      var f2 = ac.createBiquadFilter();
+      f2.type = 'bandpass'; f2.frequency.value = 2400; f2.Q.value = 3;
+      o2.connect(f2); f2.connect(g2); g2.connect(aReverb);
+      o2.start();
+      shimmer = { o: o2, g: g2 };
+    } catch (e) { drone = shimmer = null; }
+  }
+
+  /* El fondo sigue a la tension y al climax. Se llama desde el juego una vez
+     por paso, no por cuadro: las rampas de Web Audio ya interpolan solas. */
+  function fondo(tension, climax) {
+    armarFondo();
+    if (!activo()) return { drone: 0, shimmer: 0 };
+    var t0 = ac.currentTime;
+    var gd = Math.min(.075, (tension || 0) * .075);
+    var gs = (climax || 0) > .15 ? Math.min(.020, (climax - .15) * .028) : 0;
+    if (drone) drone.g.gain.setTargetAtTime(gd, t0, 2.5);
+    if (shimmer) shimmer.g.gain.setTargetAtTime(gs, t0, 1.2);
+    return { drone: gd, shimmer: gs };
+  }
+
+  function nivelGrave() {
+    if (!analizador || !datosFrec) return 0;
+    analizador.getByteFrequencyData(datosFrec);
+    var hasta = Math.max(1, Math.floor(datosFrec.length * .25));
+    var suma = 0;
+    for (var i = 0; i < hasta; i++) suma += datosFrec[i];
+    return Math.min(1, (suma / hasta) / 190);
+  }
+
   return {
+    nivelGrave: nivelGrave,
+    fondo: fondo,
     prender: prender, apagar: apagar, alternar: alternar, activo: activo,
     gota: gota, roce: roce, golpe: golpe, transformar: transformar,
     dormirColchon: dormirColchon, voces: function () { return vivas; },
@@ -4336,52 +4468,84 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Audio2; 
 
 </script>
 <script>
-/* Psicodelia.
+/* El control de intensidad cicla entre los tres niveles y se acuerda del
+   elegido. Va con el de sonido y no en un menu aparte: son las dos cosas que
+   alguien puede querer bajar sin dejar de jugar, y merecen estar igual de a
+   mano. El icono muestra cuanto pega: un cuarto, medio, lleno. */
+window.addEventListener('DOMContentLoaded', function () {
+  var b = document.getElementById('intensidad');
+  var ico = document.getElementById('intensidadIcono');
+  if (!b || !window.Psicodelia) return;
+  var orden = ['suave', 'normal', 'extremo'];
+  var iconos = { suave: '◔', normal: '◐', extremo: '●' };
+  function pintar() {
+    var n = Psicodelia.nivel;
+    ico.textContent = iconos[n] || '◐';
+    b.setAttribute('aria-pressed', n === 'extremo' ? 'true' : 'false');
+    b.title = 'Cuánto se deforma el sueño: ' + n;
+  }
+  b.addEventListener('click', function () {
+    var i = orden.indexOf(Psicodelia.nivel);
+    Psicodelia.ponerNivel(orden[(i + 1) % orden.length]);
+    pintar();
+  });
+  pintar();
+});
+</script>
+<script>
+/* Psicodelia — el pipeline.
 
-   No es un filtro pegado encima: engancha con la tension que el juego ya lleva
-   — cuanto mas descubierto esta que el mundo no cierra, mas se va el mundo. En
-   el primer lugar casi no se nota; para el octavo el aire ondula, los colores
-   se separan de los objetos y todo deja rastro.
+   No es un filtro encima del juego: escala con la tension que el juego ya
+   llevaba, asi que el primer lugar se ve casi sobrio y para el octavo el mundo
+   es otra cosa. Esa progresion es lo unico que cuenta algo; un efecto que esta
+   siempre al mango no dice nada.
 
-   Que hace, todo escalado por lo mismo:
+   ESTRUCTURA. Cada efecto es una capa que declara tres cosas: en que momento
+   del cuadro corre (fase), a partir de que tension aparece (umbral), y cuanto
+   sale (costo). El pipeline las corre en orden y mide lo que tardan de verdad;
+   si el cuadro se pasa del presupuesto, apaga las caras de atras para adelante
+   hasta entrar. Sin eso, cincuenta efectos sobre el mismo canvas terminan en
+   una presentacion de diapositivas en la primera maquina lenta.
 
-   1. Estela      el fondo se repinta translucido, asi lo del cuadro anterior no
-                  se borra del todo y lo que se mueve deja rastro.
-   2. Tinte       bandas de color que corren sobre el cielo con la mezcla
-                  'color': se llevan el tono y respetan las luces y las sombras,
-                  asi que el cielo cambia de color sin aplanarse.
-   3. Canales     el rojo y el cian se separan del dibujo y se corren para lados
-                  opuestos. Es lo que da los bordes de colores, y es el efecto
-                  que mas "psicodelico" lee de todos.
-   4. Ondulacion  la imagen se corta en tiras horizontales y cada una se corre
-                  con un seno.
-   5. Respiracion todo el cuadro se agranda y se achica muy de a poco, como si
-                  la escena estuviera respirando.
+   Las fases son tres:
+     'cielo'  despues de pintar el cielo y antes de las figuras. Lo que va aca
+              tine el fondo sin llevarse el color de las figuras.
+     'post'   sobre el cuadro terminado, deformandolo.
+     'sobre'  encima de todo, sin deformar: particulas, destellos, viñeta.
 
-   Cada uno tiene que poder valer cero, porque con reduced-motion queda
-   unicamente el tinte, quieto: alguien que pidio que las cosas no se muevan no
-   deberia recibir el piso ondulando ni la pantalla respirando.
+   DOS REGLAS QUE NO SE NEGOCIAN, y que estan puestas como codigo y no como
+   buena intencion:
 
-   El costo esta acotado a proposito: los canvas auxiliares se crean una vez y
-   los efectos caros (canales, ondulacion) no arrancan hasta pasado un umbral,
-   asi que la mayor parte de la partida se paga poco. */
+   1. Nada de estroboscopio. Ningun efecto de pantalla completa puede cambiar
+      mas rapido que TOPE_HZ. Es la unica forma en que un juego lindo manda a
+      alguien al hospital.
+   2. Con prefers-reduced-motion queda unicamente el color, quieto. Cero
+      movimiento, cero particulas, cero pulsos. */
 
 var Psicodelia = (function () {
   'use strict';
 
-  /* Encendida de fabrica: es el juego, no un modo. Se puede apagar igual, que
-     es lo que usan las capturas y las pruebas para comparar contra el dibujo
-     limpio. */
+  var TOPE_HZ = 3;              // techo de parpadeo para pantalla completa
+  var PRESUPUESTO_MS = 6;       // lo que puede salir todo el post-proceso
+
+  var NIVELES = { suave: .55, normal: 1, extremo: 1.7 };
+  var nivel = 'normal';
+  try {
+    var g = localStorage.getItem('psico.nivel');
+    if (g && NIVELES[g]) nivel = g;
+  } catch (e) {}
+
   var activo = true;
-  var fuerza = 1;
 
   var quieto = false;
   try {
     quieto = window.matchMedia &&
              window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  } catch (e) { quieto = false; }
+  } catch (e2) { quieto = false; }
 
-  // Tres auxiliares: la copia, el canal rojo y el cian. Se crean una sola vez.
+  /* ---------------- lienzos auxiliares ----------------
+     Se crean una vez y se redimensionan al vuelo. Crear un canvas por cuadro
+     es la forma mas facil de que el recolector de basura arruine la fluidez. */
   var lienzos = {};
   function lienzo(clave, W, H) {
     var l = lienzos[clave];
@@ -4393,149 +4557,993 @@ var Psicodelia = (function () {
     return l;
   }
 
-  /* Cuanto efecto corresponde ahora. La tension manda; la fuerza es el tope de
-     quien configura. No arranca en cero del todo: un piso bajo hace que el
-     primer lugar ya tenga algo raro, que es lo que engancha. */
+  /* ---------------- el grado ----------------
+     Cuanto efecto corresponde ahora mismo. La tension manda, el nivel escala.
+     Arranca en .10 y no en cero: que el primer lugar ya tenga algo raro es lo
+     que hace que se note que el mundo esta mal desde el principio. */
   function grado(tension, climax) {
     if (!activo) return 0;
-    var n = .12 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .88;
-    return Math.min(1, n) * fuerza;
+    var base = .10 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .90;
+    return Math.min(1.7, base * NIVELES[nivel]);
   }
 
-  /* Con cuanta opacidad repintar el fondo. 1 borra todo (lo normal); menos deja
-     ver el cuadro anterior y aparece la estela. No baja de .70: mas abajo el
-     rastro no termina de limpiarse nunca y la pantalla se ensucia sola. */
+  /* ---------------- guarda anti-estroboscopio ----------------
+     Cualquier capa que quiera pulsar pantalla completa pide su valor aca. La
+     funcion no deja que el ciclo suba de TOPE_HZ, sea cual sea la frecuencia
+     que le pidan: en vez de confiar en que cada capa se porte bien, el limite
+     esta en el unico lugar por el que pasan todas. */
+  function pulso(t, hz, minimo, maximo) {
+    var f = Math.min(TOPE_HZ, Math.abs(hz || 1));
+    var v = (Math.sin(t * f * 6.2832) + 1) / 2;
+    var lo = (minimo === undefined) ? 0 : minimo;
+    var hi = (maximo === undefined) ? 1 : maximo;
+    return lo + v * (hi - lo);
+  }
+
+  /* ---------------- registro de capas ---------------- */
+  var CALENTAMIENTO = 20;       // muestras a descartar por capa
+  var capas = [];
+  var costos = {};              // promedio movil de ms por capa
+  var muestras = {};
+  var apagadasPorCosto = {};
+
+  /* opciones: fase, umbral (0-1 de grado), movimiento (si es true no corre con
+     reduced-motion), caro (candidata a apagarse cuando no entra en presupuesto) */
+  function capa(nombre, opciones, correr) {
+    capas.push({
+      nombre: nombre,
+      fase: opciones.fase || 'post',
+      umbral: opciones.umbral || 0,
+      movimiento: opciones.movimiento !== false,
+      caro: !!opciones.caro,
+      correr: correr
+    });
+  }
+
+  function corresponde(c, n) {
+    if (n <= .001) return false;
+    if (n < c.umbral) return false;
+    if (quieto && c.movimiento) return false;
+    if (apagadasPorCosto[c.nombre]) return false;
+    return true;
+  }
+
+  /* Corre las capas de una fase y mide lo que tardan. El promedio movil evita
+     que un pico suelto apague una capa para siempre. */
+  function correrFase(fase, ctx) {
+    var total = 0;
+    for (var i = 0; i < capas.length; i++) {
+      var c = capas[i];
+      if (c.fase !== fase || !corresponde(c, ctx.n)) continue;
+      var t0 = performance.now();
+      try {
+        c.correr(ctx);
+      } catch (e) {
+        /* Una capa que revienta no puede llevarse el cuadro puesto: se anota y
+           se apaga, y el juego sigue dibujando. */
+        apagadasPorCosto[c.nombre] = 'error: ' + e.message;
+        continue;
+      }
+      var ms = performance.now() - t0;
+      /* Las primeras muestras de cada capa se descartan: el primer cuadro paga
+         compilacion del codigo y creacion de texturas, y da valores cien veces
+         mas altos que el regimen. Sin este descarte el presupuesto apagaba
+         capas que en realidad salen centesimas de milisegundo. */
+      muestras[c.nombre] = (muestras[c.nombre] || 0) + 1;
+      if (muestras[c.nombre] > CALENTAMIENTO) {
+        var previo = costos[c.nombre];
+        /* Los picos sueltos tampoco cuentan. El canvas encola comandos y los
+           ejecuta cuando quiere, asi que de vez en cuando una capa paga el
+           vaciado de todo lo anterior y mide cien veces su costo real. Medido:
+           deformar da 0,23 ms de verdad y 96 en el cuadro donde le toca pagar
+           el vaciado. Sin este filtro, el presupuesto apagaba justo las capas
+           que mas dibujan, que son las que se notan. */
+        if (previo === undefined) costos[c.nombre] = ms;
+        else if (ms < previo * 10 + 1) costos[c.nombre] = previo * .85 + ms * .15;
+        total += Math.min(ms, (previo === undefined ? ms : previo * 3 + 1));
+      }
+    }
+    return total;
+  }
+
+  /* Presupuesto: si el post-proceso se pasa, se apaga la capa cara mas lenta.
+     Se revisa cada tanto y no en cada cuadro, para que un pico no encienda y
+     apague capas a lo loco — el parpadeo de un efecto que va y viene molesta
+     mas que el efecto mismo. */
+  var gastoUltimo = 0, revisiones = 0;
+  function revisarPresupuesto(gasto) {
+    gastoUltimo = gastoUltimo * .9 + gasto * .1;
+    if (++revisiones % 30 !== 0) return;
+    if (gastoUltimo <= PRESUPUESTO_MS) {
+      // Sobra presupuesto: probar de nuevo con una de las apagadas.
+      if (revisiones % 600 === 0) reintentarUna();
+      return;
+    }
+    var peor = null;
+    for (var i = 0; i < capas.length; i++) {
+      var c = capas[i];
+      if (!c.caro || apagadasPorCosto[c.nombre]) continue;
+      if (!peor || (costos[c.nombre] || 0) > (costos[peor.nombre] || 0)) peor = c;
+    }
+    if (peor) {
+      apagadasPorCosto[peor.nombre] = 'presupuesto';
+      gastoUltimo = 0;
+    }
+  }
+
+  /* Cada tanto se le devuelve la oportunidad a una capa apagada por costo. Una
+     maquina puede estar lenta un rato — otra pestaña, una descarga— y quedarse
+     sin la mitad de los efectos para siempre por un mal minuto es peor que
+     medir de nuevo y volver a apagarla si de verdad no entra. */
+  function reintentarUna() {
+    for (var k in apagadasPorCosto) {
+      if (apagadasPorCosto[k] === 'presupuesto') {
+        delete apagadasPorCosto[k];
+        delete costos[k];
+        muestras[k] = 0;
+        return k;
+      }
+    }
+    return null;
+  }
+
+  /* ---------------- audio reactivo ----------------
+     El nivel lo empuja el modulo de audio; aca solo se guarda suavizado. Si
+     nadie lo alimenta queda en cero y las capas que lo usan no hacen nada, que
+     es lo correcto: el juego se tiene que poder jugar en silencio. */
+  var audio = 0;
+  function alimentarAudio(v) {
+    if (typeof v !== 'number' || !isFinite(v)) return;
+    audio = audio * .78 + Math.max(0, Math.min(1, v)) * .22;
+  }
+
+  /* ---------------- lo que pasa en la escena ----------------
+     Las capas necesitan saber donde esta la figura, de que color es el lugar y
+     donde cae el piso: sin eso solo pueden hacer efectos de pantalla completa,
+     que son los que se notan como filtro pegado encima. El juego empuja estos
+     datos una vez por cuadro. */
+  var escena = { fx: 0, fy: 0, E: 1, piso: 0, color: '200,200,255',
+                 lugar: '', belX: .2, belY: 0, u: 1 };
+  function ponerEscena(d) {
+    if (!d) return;
+    for (var k in d) if (d[k] !== undefined) escena[k] = d[k];
+  }
+
+  /* ---------------- eventos ----------------
+     Un acierto o un cambio de lugar duran un instante y varias capas quieren
+     reaccionar. En vez de que cada una se entere por su cuenta, se anota
+     cuando paso y cada capa pregunta cuanto hace. */
+  var eventos = {};
+  var relojEscena = 0;
+  function evento(nombre) { eventos[nombre] = relojEscena; }
+  function desde(nombre) {
+    var t = eventos[nombre];
+    return (t === undefined) ? Infinity : (relojEscena - t);
+  }
+
+  /* ---------------- API que usa el juego ---------------- */
+
   function veloFondo(tension, climax) {
     var n = grado(tension, climax);
     if (n <= .001 || quieto) return 1;
-    return 1 - n * .30;
+    return 1 - Math.min(.34, n * .30);
   }
 
-  /* El tinte del cielo. Va con 'color', que reemplaza el tono dejando intacta
-     la luminosidad: por eso el cielo cambia de color pero las estrellas siguen
-     siendo puntos claros y el degrade sigue teniendo fondo y horizonte.
+  function armarCtx(cx, cv, W, H, t, tension, climax) {
+    relojEscena = t;
+    return {
+      cx: cx, cv: cv, W: W, H: H, t: t,
+      tension: tension || 0, climax: climax || 0,
+      n: grado(tension, climax),
+      nivel: nivel, audio: audio,
+      escena: escena, desde: desde,
+      lienzo: lienzo, pulso: pulso
+    };
+  }
 
-     Cinco topes en vez de dos porque con dos el gradiente pasa por el medio de
-     la rueda de color y sale un lavado marron; con cinco saltando de a 68
-     grados quedan bandas separadas que se leen como bandas. */
+  // Fase 'cielo': tine el fondo, antes de que se dibujen las figuras.
   function tinte(cx, W, H, t, tension, climax) {
-    var n = grado(tension, climax);
-    if (n <= .001) return;
-    var giro = quieto ? 40 : (t * 11) % 360;
-    var g = cx.createLinearGradient(0, 0, W * .85, H);
-    for (var i = 0; i <= 4; i++) {
-      g.addColorStop(i / 4, 'hsl(' + ((giro + i * 68) % 360) + ',88%,58%)');
-    }
-    cx.save();
-    cx.globalCompositeOperation = 'color';
-    cx.globalAlpha = .16 + n * .40;
-    cx.fillStyle = g;
-    cx.fillRect(0, 0, W, H);
-    cx.restore();
+    var ctx = armarCtx(cx, null, W, H, t, tension, climax);
+    correrFase('cielo', ctx);
   }
 
-  /* Saturacion general. El tono ya lo mueve el tinte, asi que aca solo se sube
-     el volumen del color; rotar el tono ademas peleaba contra las bandas. */
+  // Fase 'post' + 'sobre': el cuadro ya esta dibujado.
+  function despues(cx, cv, W, H, t, tension, climax) {
+    if (W < 2 || H < 2) return;
+    var ctx = armarCtx(cx, cv, W, H, t, tension, climax);
+    if (ctx.n <= .001) return;
+    var gasto = correrFase('post', ctx) + correrFase('sobre', ctx);
+    revisarPresupuesto(gasto);
+  }
+
   function filtroCss(t, tension, climax) {
     var n = grado(tension, climax);
     if (n <= .001) return 'none';
-    return 'saturate(' + (1 + n * .60).toFixed(2) + ')';
+    /* Saturacion sola: el tono lo mueven las capas de color, y rotarlo tambien
+       aca peleaba contra ellas. */
+    return 'saturate(' + (1 + Math.min(.9, n * .55)).toFixed(2) + ')';
   }
 
-  /* Separa el rojo del cian. Se hace con dos copias tenidas: multiplicar por
-     rojo puro deja solo el canal rojo, multiplicar por cian deja verde y azul.
-     Sumadas de nuevo con 'lighter' y corridas para lados opuestos, reconstruyen
-     la imagen con los bordes en colores. */
-  function canales(cx, fuenteCv, W, H, d, alfa) {
-    var R = lienzo('rojo', W, H), C = lienzo('cian', W, H);
+  /* ---------------- control ---------------- */
+  function ponerNivel(n) {
+    if (!NIVELES[n]) return { error: 'nivel invalido', validos: Object.keys(NIVELES) };
+    nivel = n;
+    try { localStorage.setItem('psico.nivel', n); } catch (e) {}
+    // Un nivel nuevo merece otra oportunidad para las capas apagadas por costo.
+    for (var k in apagadasPorCosto) {
+      if (apagadasPorCosto[k] === 'presupuesto') delete apagadasPorCosto[k];
+    }
+    gastoUltimo = 0;
+    return estado();
+  }
+
+  function estado() {
+    var activas = [], apagadas = [];
+    var n = grado(1, 0);
+    for (var i = 0; i < capas.length; i++) {
+      var c = capas[i];
+      (corresponde(c, n) ? activas : apagadas).push(c.nombre);
+    }
+    return {
+      activo: activo, nivel: nivel, escala: NIVELES[nivel], quieto: quieto,
+      audio: +audio.toFixed(3), capas: capas.length,
+      activas: activas, apagadas: apagadas,
+      apagadasPorCosto: apagadasPorCosto,
+      gasto: +gastoUltimo.toFixed(2), presupuesto: PRESUPUESTO_MS
+    };
+  }
+
+  function costo() {
+    var salida = {}, total = 0;
+    for (var k in costos) { salida[k] = +costos[k].toFixed(3); total += costos[k]; }
+    return { porCapa: salida, total: +total.toFixed(3), presupuesto: PRESUPUESTO_MS };
+  }
+
+  function encender(f) {
+    activo = true;
+    if (typeof f === 'string' && NIVELES[f]) ponerNivel(f);
+    return estado();
+  }
+  function apagar() { activo = false; return { activo: activo }; }
+
+  return {
+    encender: encender, apagar: apagar,
+    ponerNivel: ponerNivel, estado: estado, costo: costo,
+    alimentarAudio: alimentarAudio,
+    capa: capa, lienzo: lienzo, pulso: pulso, reintentarUna: reintentarUna,
+    /* Solo para verificar: prefers-reduced-motion no se puede cambiar desde la
+       pagina, y sin poder simularlo la promesa de "con reduced-motion no se
+       mueve nada" queda sin comprobar, que es como no tenerla. */
+    simularQuieto: function (v) { quieto = !!v; return quieto; },
+    escena: ponerEscena, evento: evento, desde: desde,
+    get activo() { return activo; },
+    get nivel() { return nivel; },
+    get quieto() { return quieto; },
+    get TOPE_HZ() { return TOPE_HZ; },
+    grado: grado, veloFondo: veloFondo, tinte: tinte,
+    filtroCss: filtroCss, despues: despues
+  };
+})();
+
+if (typeof module !== 'undefined' && module.exports) { module.exports = Psicodelia; }
+
+</script>
+<script>
+/* Las capas de deformacion.
+
+   Cada una se registra con Psicodelia.capa(nombre, opciones, correr). El
+   pipeline decide cuando corren, las mide y apaga las caras si el cuadro no
+   entra en presupuesto. Aca solo esta el que de cada efecto.
+
+   POR QUE TODAS LAS DEFORMACIONES GEOMETRICAS VIVEN EN UNA SOLA CAPA. Encadenar
+   capas que deforman obliga a copiar el cuadro entero entre cada dos, y tres
+   copias de una pantalla por cuadro cuestan mas que todos los efectos juntos.
+   En una sola pasada se lee el cuadro una vez y se escribe una vez, con todas
+   las deformaciones sumadas en el desplazamiento de cada tira: agregar un
+   efecto nuevo es sumar un termino, no otra pasada. */
+
+(function () {
+  'use strict';
+
+  var P = Psicodelia;
+
+  // Copia el cuadro actual a un lienzo auxiliar y devuelve su canvas.
+  function copiar(ctx, clave) {
+    var l = P.lienzo(clave, ctx.W, ctx.H);
+    l.cx.setTransform(1, 0, 0, 1, 0, 0);
+    l.cx.globalCompositeOperation = 'source-over';
+    l.cx.globalAlpha = 1;
+    l.cx.clearRect(0, 0, ctx.W, ctx.H);
+    l.cx.drawImage(ctx.cv, 0, 0);
+    return l.cv;
+  }
+
+  /* ============================================================
+     FASE CIELO — tine el fondo antes de que se dibujen las figuras
+     ============================================================ */
+
+  /* El tinte va con la mezcla 'color': reemplaza el tono y respeta la
+     luminosidad, asi que el cielo cambia de color pero las estrellas siguen
+     siendo puntos claros y el degrade conserva fondo y horizonte.
+
+     Cinco topes y no dos: con dos, el gradiente cruza el medio de la rueda de
+     color y sale un lavado marron. Saltando de a 68 grados quedan bandas que
+     se leen como bandas. */
+  P.capa('tinte', { fase: 'cielo', movimiento: false }, function (ctx) {
+    var giro = P.quieto ? 40 : (ctx.t * 11) % 360;
+    var g = ctx.cx.createLinearGradient(0, 0, ctx.W * .85, ctx.H);
+    for (var i = 0; i <= 4; i++) {
+      g.addColorStop(i / 4, 'hsl(' + ((giro + i * 68) % 360) + ',88%,58%)');
+    }
+    ctx.cx.save();
+    ctx.cx.globalCompositeOperation = 'color';
+    ctx.cx.globalAlpha = Math.min(.62, .16 + ctx.n * .38);
+    ctx.cx.fillStyle = g;
+    ctx.cx.fillRect(0, 0, ctx.W, ctx.H);
+    ctx.cx.restore();
+  });
+
+  /* ============================================================
+     FASE POST — deforma el cuadro terminado
+     ============================================================ */
+
+  /* Todas las deformaciones geometricas, en dos pasadas.
+
+     La primera corta el cuadro en filas y corre cada una en horizontal; la
+     segunda lo corta en columnas y corre cada una en vertical. Hacen falta las
+     dos porque una tira horizontal solo se puede mover en X: con una sola
+     pasada, el mundo ondula como una bandera y nunca como agua.
+
+     El corrimiento de cada tira es la SUMA de todos los efectos activos:
+     onda, remolino alrededor de la figura, y barril hacia los bordes. */
+  P.capa('deformar', { fase: 'post', caro: true }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H, n = ctx.n, t = ctx.t, e = ctx.escena;
+    var fuente = copiar(ctx, 'copia');
+
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.clearRect(0, 0, W, H);
+
+    // Respiracion: el cuadro entero se agranda y se achica muy de a poco.
+    var resp = 1 + Math.sin(t * .62) * .016 * n + ctx.audio * .012 * n;
+    // Rotacion: apenas medio grado, pero alcanza para que nada este a plomo.
+    var giro = Math.sin(t * .23) * .009 * n;
+    cx.translate(W / 2, H / 2);
+    cx.scale(resp, resp);
+    cx.rotate(giro);
+    cx.translate(-W / 2, -H / 2);
+
+    // Temblor: solo en el climax.
+    if (ctx.climax > .01) {
+      var amp = ctx.climax * n * 3.2;
+      cx.translate(Math.sin(t * 17.3) * amp, Math.cos(t * 14.1) * amp);
+    }
+
+    var filas = Math.max(1, Math.round(6 + n * 46));
+    var altoF = H / filas;
+    var ondaH = n * n * 13;
+    var remolino = n * n * 22;
+
+    for (var i = 0; i < filas; i++) {
+      var y = i * altoF;
+      var cyRel = (y + altoF / 2 - e.fy) / H;        // distancia a la figura
+      // Onda de siempre.
+      var dx = Math.sin(t * 1.15 + i * .34) * ondaH;
+      // Remolino: cuanto mas cerca de la figura, mas se arrastra de costado.
+      dx += Math.exp(-cyRel * cyRel * 9) * Math.sin(t * .8) * remolino;
+      /* Barril: las filas lejos del centro se ensanchan un poco, asi que las
+         verticales dejan de ser verticales y el cuadro se abomba como visto a
+         traves de un vidrio grueso. Se hace con el ancho de destino del mismo
+         drawImage, o sea gratis: no agrega una pasada. */
+      var vCentro = (y + altoF / 2) / H - .5;
+      var esc = 1 + vCentro * vCentro * n * .085;
+      var anchoDest = W * esc;
+      /* +1 de alto: sin eso quedan lineas de fondo entre tira y tira, porque el
+         alto de tira casi nunca da entero. */
+      cx.drawImage(fuente, 0, y, W, altoF + 1,
+                   dx - (anchoDest - W) / 2, y, anchoDest, altoF + 1);
+    }
+    cx.restore();
+
+    // Segunda pasada: columnas, para que la deformacion tenga las dos
+    // direcciones. Solo pasado cierto grado, porque cuesta otra pantalla.
+    if (n > .45) {
+      var fuente2 = copiar(ctx, 'copiaV');
+      cx.save();
+      cx.setTransform(1, 0, 0, 1, 0, 0);
+      cx.clearRect(0, 0, W, H);
+      var cols = Math.max(1, Math.round(8 + n * 30));
+      var anchoC = W / cols;
+      var ondaV = (n - .45) * 16;
+      for (var j = 0; j < cols; j++) {
+        var x = j * anchoC;
+        var dy = Math.cos(t * .93 + j * .41) * ondaV;
+        cx.drawImage(fuente2, x, 0, anchoC + 1, H, x, dy, anchoC + 1, H);
+      }
+      cx.restore();
+    }
+  });
+
+  /* Separa el rojo del cian y los corre para lados opuestos.
+
+     Se hace con dos copias tenidas: multiplicar por rojo puro deja solo el
+     canal rojo, multiplicar por cian deja verde y azul. Sumadas de nuevo con
+     'lighter' reconstruyen la imagen, pero corridas dejan los bordes en
+     colores. Es el efecto que mas "psicodelico" lee de todos. */
+  P.capa('canales', { fase: 'post', umbral: .30, caro: true }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var k = Math.min(1, (ctx.n - .30) / .70);
+    var d = 1 + k * 7 + ctx.audio * 3;
+    var alfa = .16 + k * .30;
+
+    var fuente = copiar(ctx, 'canalFuente');
+    var R = P.lienzo('rojo', W, H), C = P.lienzo('cian', W, H);
 
     R.cx.globalCompositeOperation = 'source-over';
     R.cx.clearRect(0, 0, W, H);
-    R.cx.drawImage(fuenteCv, 0, 0);
+    R.cx.drawImage(fuente, 0, 0);
     R.cx.globalCompositeOperation = 'multiply';
     R.cx.fillStyle = '#f00';
     R.cx.fillRect(0, 0, W, H);
 
     C.cx.globalCompositeOperation = 'source-over';
     C.cx.clearRect(0, 0, W, H);
-    C.cx.drawImage(fuenteCv, 0, 0);
+    C.cx.drawImage(fuente, 0, 0);
     C.cx.globalCompositeOperation = 'multiply';
     C.cx.fillStyle = '#0ff';
     C.cx.fillRect(0, 0, W, H);
 
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
     cx.globalCompositeOperation = 'lighter';
     cx.globalAlpha = alfa;
     cx.drawImage(R.cv, -d, 0);
     cx.drawImage(C.cv, d, 0);
-    cx.globalAlpha = 1;
-    cx.globalCompositeOperation = 'source-over';
-  }
+    cx.restore();
+  });
 
-  /* El post-proceso, sobre el cuadro ya terminado: copia lo pintado al
-     auxiliar, limpia, y lo devuelve deformado. */
-  function despues(cx, cv, W, H, t, tension, climax) {
-    var n = grado(tension, climax);
-    if (n <= .001 || quieto) return;
-    if (W < 2 || H < 2) return;
+  /* Caleidoscopio, solo mientras el lugar se esta transformando.
 
-    var A = lienzo('copia', W, H);
-    A.cx.clearRect(0, 0, W, H);
-    A.cx.drawImage(cv, 0, 0);
+     Es el efecto mas fuerte de todos y por eso esta atado al unico momento en
+     que el mundo ya esta roto de todas formas: las piezas estan en el aire y
+     todavia no son nada. Encendido todo el tiempo, no se podria jugar. */
+  P.capa('caleidoscopio', { fase: 'post', umbral: .45, caro: true }, function (ctx) {
+    var u = ctx.escena.u;
+    if (u >= 1 || u <= 0) return;
+    // Fuerza en campana: cero al empezar y al terminar, maximo en el medio.
+    var fuerza = Math.sin(u * Math.PI) * Math.min(1, (ctx.n - .45) / .55);
+    if (fuerza < .02) return;
+
+    var cx = ctx.cx, W = ctx.W, H = ctx.H, e = ctx.escena;
+    var fuente = copiar(ctx, 'calFuente');
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.globalAlpha = fuerza * .55;
+    var hojas = 6;
+    for (var i = 1; i < hojas; i++) {
+      cx.save();
+      cx.translate(e.fx, e.fy);
+      cx.rotate(i * (6.2832 / hojas) + ctx.t * .12);
+      if (i % 2) cx.scale(-1, 1);
+      cx.translate(-e.fx, -e.fy);
+      cx.drawImage(fuente, 0, 0);
+      cx.restore();
+    }
+    cx.restore();
+  });
+
+  /* Anillos que se abren desde la figura cuando el lugar termina de cambiar.
+     Van deformando en vez de pintando: es el aire moviendose, no una onda
+     dibujada encima. */
+  P.capa('ondas', { fase: 'post', umbral: .25 }, function (ctx) {
+    var dt = ctx.desde('lugar');
+    if (dt > 1.2 || dt < 0) return;
+    var cx = ctx.cx, W = ctx.W, H = ctx.H, e = ctx.escena;
+    var fuente = copiar(ctx, 'ondaFuente');
+    var k = dt / 1.2;
+    var radio = Math.max(W, H) * k * .8;
+    var grosor = Math.max(W, H) * .10;
+    var amp = (1 - k) * 16 * ctx.n;
 
     cx.save();
     cx.setTransform(1, 0, 0, 1, 0, 0);
-    cx.clearRect(0, 0, W, H);
-
-    // Respiracion: apenas un 1.5% en el maximo, pero se siente.
-    var resp = 1 + Math.sin(t * .62) * .015 * n;
-    if (resp !== 1) {
-      cx.translate(W / 2, H / 2);
-      cx.scale(resp, resp);
-      cx.translate(-W / 2, -H / 2);
+    // Solo se redibuja el anillo, no la pantalla entera: mucho mas barato y el
+    // resto del cuadro ya esta bien donde esta.
+    var pasos = 22;
+    for (var i = 0; i < pasos; i++) {
+      var r = radio - grosor / 2 + (grosor * i / pasos);
+      if (r <= 1) continue;
+      var d = Math.sin(i / pasos * Math.PI) * amp;
+      var esc = (r + d) / r;
+      cx.save();
+      cx.beginPath();
+      cx.arc(e.fx, e.fy, r, 0, 6.2832);
+      cx.arc(e.fx, e.fy, Math.max(0, r - grosor / pasos - 1), 0, 6.2832, true);
+      cx.clip();
+      cx.translate(e.fx, e.fy);
+      cx.scale(esc, esc);
+      cx.translate(-e.fx, -e.fy);
+      cx.drawImage(fuente, 0, 0);
+      cx.restore();
     }
-
-    /* Tiras: pocas cuando el efecto es leve, muchas cuando es fuerte, para no
-       pagar 56 drawImage por cuadro por una onda que no se ve. */
-    var tiras = Math.max(1, Math.round(6 + n * 50));
-    var alto = H / tiras;
-    var amplitud = n * n * 15;
-
-    for (var i = 0; i < tiras; i++) {
-      var y = i * alto;
-      var dx = Math.sin(t * 1.15 + i * .34) * amplitud;
-      /* +1 de alto: sin eso quedan lineas de fondo entre tira y tira, porque el
-         alto casi nunca da entero. */
-      cx.drawImage(A.cv, 0, y, W, alto + 1, dx, y, W, alto + 1);
-    }
-
-    // Los canales, encima. Cuestan dos copias enteras: recien pasado un tercio.
-    if (n > .30) {
-      var k = (n - .30) / .70;
-      canales(cx, A.cv, W, H, 1 + k * 7, .16 + k * .34);
-    }
-
     cx.restore();
+  });
+
+  /* Glitch por bloques: cada tanto, unas bandas se corren de golpe. Es el unico
+     efecto que no es continuo — aparece, dura tres cuadros y se va.
+
+     La irregularidad sale de una funcion del tiempo y no de Math.random: asi el
+     mismo instante se ve igual si se vuelve a dibujar, que es lo que permite
+     capturarlo para verificarlo. */
+  P.capa('glitch', { fase: 'post', umbral: .40 }, function (ctx) {
+    var ciclo = 3.7;
+    var fase = (ctx.t % ciclo) / ciclo;
+    if (fase > .06) return;
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var fuente = copiar(ctx, 'glitchFuente');
+    var semilla = Math.floor(ctx.t / ciclo) * 7919;
+    var azar = function (i) {
+      var x = Math.sin(semilla + i * 127.1) * 43758.5453;
+      return x - Math.floor(x);
+    };
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    for (var i = 0; i < 5; i++) {
+      var y = azar(i) * H;
+      var alto = 6 + azar(i + 50) * H * .07;
+      var dx = (azar(i + 100) - .5) * W * .22 * ctx.n;
+      cx.clearRect(0, y, W, alto);
+      cx.drawImage(fuente, 0, y, W, alto, dx, y, W, alto);
+    }
+    cx.restore();
+  });
+
+  /* Espejo: la mitad derecha se refleja sobre la izquierda, de a ratos y
+     entrando y saliendo con una rampa. Sin la rampa aparece de golpe y se lee
+     como un error de dibujo en vez de como un efecto. */
+  P.capa('espejo', { fase: 'post', umbral: .55, caro: true }, function (ctx) {
+    var ciclo = 11, fase = (ctx.t % ciclo) / ciclo;
+    if (fase > .18) return;
+    var fuerza = Math.sin(fase / .18 * Math.PI) * Math.min(1, (ctx.n - .55) / .45);
+    if (fuerza < .02) return;
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var fuente = copiar(ctx, 'espejoFuente');
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.globalAlpha = fuerza * .7;
+    cx.translate(W, 0);
+    cx.scale(-1, 1);
+    cx.drawImage(fuente, 0, 0);
+    cx.restore();
+  });
+
+})();
+
+</script>
+<script>
+/* Capas de color y luz.
+
+   El principio que ordena todo el bloque: el color sale del lugar, no de un
+   arcoiris generico. Cada lugar tiene su color en el guion, y de ahi se saca el
+   tono raiz de la rueda. Asi la laguna se va para el azul y la calesita para el
+   naranja, en vez de que los catorce lugares reciban exactamente el mismo
+   tratamiento — que es la diferencia entre un mundo que se desarma y un filtro
+   pegado encima. */
+
+(function () {
+  'use strict';
+  var P = Psicodelia;
+
+  function tonoDe(rgb) {
+    var p = (rgb || '200,200,255').split(',');
+    var r = +p[0] / 255, g = +p[1] / 255, b = +p[2] / 255;
+    var mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+    if (d < .0001) return 220;
+    var h;
+    if (mx === r) h = ((g - b) / d) % 6;
+    else if (mx === g) h = (b - r) / d + 2;
+    else h = (r - g) / d + 4;
+    return ((h * 60) + 360) % 360;
+  }
+  P.tonoDe = tonoDe;
+
+  /* Plasma: un campo de color que se mueve, hecho con tres gradientes radiales
+     que orbitan a velocidades distintas. Tres y no uno porque con uno solo se
+     lee como una mancha que se desplaza; con tres, los cruces arman formas que
+     no se repiten nunca igual. */
+  P.capa('plasma', { fase: 'cielo', umbral: .18 }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var raiz = tonoDe(ctx.escena.color);
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.globalAlpha = Math.min(.30, .05 + ctx.n * .18);
+    for (var i = 0; i < 3; i++) {
+      var v = .11 + i * .07;
+      var px = W * (.5 + Math.cos(ctx.t * v + i * 2.1) * .38);
+      var py = H * (.42 + Math.sin(ctx.t * v * 1.31 + i * 1.7) * .30);
+      var rad = Math.max(W, H) * (.30 + i * .07);
+      var g = cx.createRadialGradient(px, py, 0, px, py, rad);
+      var tono = (raiz + i * 92 + ctx.t * 9) % 360;
+      g.addColorStop(0, 'hsla(' + tono + ',92%,58%,.55)');
+      g.addColorStop(1, 'hsla(' + tono + ',92%,50%,0)');
+      cx.fillStyle = g;
+      cx.fillRect(0, 0, W, H);
+    }
+    cx.restore();
+  });
+
+  /* Un abanico de rayos que gira detras de la figura. Va en la fase del cielo
+     para quedar atras: adelante taparia la silueta, que es lo unico que el
+     jugador necesita leer bien para saber donde esta. */
+  P.capa('rayos', { fase: 'cielo', umbral: .35 }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var raiz = tonoDe(e.color);
+    var rad = Math.max(ctx.W, ctx.H) * .78;
+    cx.save();
+    cx.translate(e.fx, e.fy);
+    cx.globalCompositeOperation = 'lighter';
+    /* Los rayos se apagan a medida que se alejan y son finos.
+
+       La primera version los tenia gruesos, opacos y llegando a los bordes: el
+       cuadro entero se volvia un abanico y la figura del lugar quedaba como un
+       recorte oscuro en el medio. Si no se distingue que hay delante, no se
+       puede jugar. El recorte a .12 de alpha y el apagado hacia afuera dejan el
+       giro visible sin comerse la silueta. */
+    cx.globalAlpha = Math.min(.12, (ctx.n - .35) * .16);
+    for (var i = 0; i < 14; i++) {
+      var a = ctx.t * .14 + i * (6.2832 / 14);
+      var tono = (raiz + i * 26) % 360;
+      var g = cx.createRadialGradient(0, 0, e.E * .8, 0, 0, rad);
+      g.addColorStop(0, 'hsla(' + tono + ',95%,62%,.55)');
+      g.addColorStop(.55, 'hsla(' + tono + ',95%,58%,.18)');
+      g.addColorStop(1, 'hsla(' + tono + ',95%,55%,0)');
+      cx.fillStyle = g;
+      cx.beginPath();
+      cx.moveTo(0, 0);
+      cx.lineTo(Math.cos(a - .055) * rad, Math.sin(a - .055) * rad);
+      cx.lineTo(Math.cos(a + .055) * rad, Math.sin(a + .055) * rad);
+      cx.closePath();
+      cx.fill();
+    }
+    cx.restore();
+  });
+
+  /* Contraluz: una franja de color pegada a la linea del piso. Le da al
+     horizonte un borde que el juego sobrio no tiene, y separa suelo de cielo
+     sin dibujar una linea dura. */
+  P.capa('contraluz', { fase: 'cielo', umbral: .22, movimiento: false }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var alto = ctx.H * .10;
+    var tono = (tonoDe(e.color) + 160) % 360;
+    var g = cx.createLinearGradient(0, e.piso - alto, 0, e.piso + alto * .3);
+    g.addColorStop(0, 'hsla(' + tono + ',95%,60%,0)');
+    g.addColorStop(.75, 'hsla(' + tono + ',95%,62%,' + Math.min(.42, ctx.n * .34).toFixed(3) + ')');
+    g.addColorStop(1, 'hsla(' + tono + ',95%,55%,0)');
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.fillStyle = g;
+    cx.fillRect(0, e.piso - alto, ctx.W, alto * 1.3);
+    cx.restore();
+  });
+
+  /* Aura de la figura: dos anillos de color que laten alrededor de lo que haya
+     delante. Van con 'lighter', asi que suman luz en vez de tapar. */
+  P.capa('aura', { fase: 'sobre', umbral: .20 }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var raiz = tonoDe(e.color);
+    var late = ctx.pulso(ctx.t, 1.4, .82, 1.12);
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    for (var i = 0; i < 2; i++) {
+      var r = e.E * (1.35 + i * .55) * late;
+      var g = cx.createRadialGradient(e.fx, e.fy, r * .55, e.fx, e.fy, r);
+      var tono = (raiz + 40 + i * 130 + ctx.t * 14) % 360;
+      g.addColorStop(0, 'hsla(' + tono + ',95%,62%,0)');
+      g.addColorStop(.72, 'hsla(' + tono + ',95%,62%,' + (.05 + ctx.n * .10).toFixed(3) + ')');
+      g.addColorStop(1, 'hsla(' + tono + ',95%,62%,0)');
+      cx.fillStyle = g;
+      cx.beginPath(); cx.arc(e.fx, e.fy, r, 0, 6.2832); cx.fill();
+    }
+    cx.restore();
+  });
+
+  /* Halo de Bel: mas chico y mas lento que el de la figura. Ella es el ancla
+     del cuadro — si la envuelve el mismo remolino que al resto, el ojo se queda
+     sin donde apoyarse y la pantalla entera se vuelve ruido. */
+  P.capa('halobel', { fase: 'sobre', umbral: .30 }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var bx = e.belX * ctx.W, by = e.piso - ctx.H * .055;
+    var r = ctx.H * .10 * ctx.pulso(ctx.t, .9, .9, 1.1);
+    var g = cx.createRadialGradient(bx, by, 0, bx, by, r);
+    var tono = (ctx.t * 26) % 360;
+    g.addColorStop(0, 'hsla(' + tono + ',95%,70%,' + (.05 + ctx.n * .09).toFixed(3) + ')');
+    g.addColorStop(1, 'hsla(' + tono + ',95%,70%,0)');
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.fillStyle = g;
+    cx.beginPath(); cx.arc(bx, by, r, 0, 6.2832); cx.fill();
+    cx.restore();
+  });
+
+  /* El suelo devuelve el complementario del cielo. En el juego sobrio el piso
+     es casi negro; aca es donde el color se acuesta. */
+  P.capa('suelo', { fase: 'sobre', umbral: .25, movimiento: false }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var alto = ctx.H - e.piso;
+    if (alto <= 2) return;
+    var tono = (tonoDe(e.color) + 180) % 360;
+    var g = cx.createLinearGradient(0, e.piso, 0, ctx.H);
+    g.addColorStop(0, 'hsla(' + tono + ',90%,55%,' + Math.min(.30, ctx.n * .22).toFixed(3) + ')');
+    g.addColorStop(1, 'hsla(' + ((tono + 60) % 360) + ',90%,45%,0)');
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.fillStyle = g;
+    cx.fillRect(0, e.piso, ctx.W, alto);
+    cx.restore();
+  });
+
+  /* La viñeta deja de ser negra y pasa a ser de color. Oscurecer los bordes con
+     negro apaga la imagen; hacerlo con un tono profundo cierra el cuadro sin
+     matar la saturacion que se acaba de subir. */
+  P.capa('vinieta', { fase: 'sobre', umbral: .15, movimiento: false }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var tono = (tonoDe(ctx.escena.color) + 210) % 360;
+    var g = cx.createRadialGradient(W * .5, H * .48, Math.min(W, H) * .30,
+                                    W * .5, H * .48, Math.max(W, H) * .78);
+    g.addColorStop(0, 'hsla(' + tono + ',70%,20%,0)');
+    g.addColorStop(1, 'hsla(' + tono + ',85%,16%,' + Math.min(.62, .18 + ctx.n * .34).toFixed(3) + ')');
+    cx.save();
+    cx.fillStyle = g;
+    cx.fillRect(0, 0, W, H);
+    cx.restore();
+  });
+
+  /* Acertar prende un anillo de arcoiris que se abre desde la figura. Dura 700
+     ms y es la unica recompensa visual fuerte del juego: si acertar no se
+     siente, la mecanica no engancha con nada. */
+  P.capa('destelloAcierto', { fase: 'sobre' }, function (ctx) {
+    var dt = ctx.desde('acierto');
+    if (dt > .7 || dt < 0) return;
+    var k = dt / .7;
+    var cx = ctx.cx, e = ctx.escena;
+    var r = e.E * (.6 + k * 2.6);
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.globalAlpha = (1 - k) * .55;
+    cx.lineWidth = Math.max(2, e.E * .10 * (1 - k));
+    for (var i = 0; i < 6; i++) {
+      cx.strokeStyle = 'hsl(' + ((i * 60 + ctx.t * 40) % 360) + ',95%,62%)';
+      cx.beginPath();
+      cx.arc(e.fx, e.fy, r + i * cx.lineWidth * .55, i * 1.04, i * 1.04 + 1.02);
+      cx.stroke();
+    }
+    cx.restore();
+  });
+
+  /* En el climax se invierte el color de una franja que barre la pantalla.
+     Barre en vez de parpadear a proposito: invertir todo de golpe seria
+     exactamente el destello de pantalla completa que la guarda prohibe. */
+  P.capa('inversion', { fase: 'sobre', umbral: .5 }, function (ctx) {
+    if (ctx.climax <= .02) return;
+    var cx = ctx.cx, H = ctx.H;
+    var alto = H * .16;
+    var y = ((ctx.t * .35) % 1.4 - .2) * H;
+    cx.save();
+    cx.globalCompositeOperation = 'difference';
+    cx.globalAlpha = ctx.climax * .5;
+    var g = cx.createLinearGradient(0, y, 0, y + alto);
+    g.addColorStop(0, 'rgba(255,255,255,0)');
+    g.addColorStop(.5, 'rgba(255,255,255,1)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    cx.fillStyle = g;
+    cx.fillRect(0, y, ctx.W, alto);
+    cx.restore();
+  });
+
+})();
+
+</script>
+<script>
+/* Particulas.
+
+   Un solo sistema para todo lo que vuela: el polvo del aire, las chispas de
+   acertar, el rastro de Bel, lo que sueltan las piezas al transformarse y la
+   lluvia del climax. Uno solo y no cinco porque el tope tiene que ser global —
+   con un tope por tipo, cinco emisores modestos suman una tormenta.
+
+   El arreglo es de tamano fijo y las particulas se reciclan: nunca se crean ni
+   se destruyen objetos durante el juego. Crear objetos por cuadro es la forma
+   mas facil de que el recolector de basura meta tirones justo cuando hay mucho
+   en pantalla, que es exactamente cuando se nota. */
+
+(function () {
+  'use strict';
+  var P = Psicodelia;
+
+  var TOPES = { suave: 70, normal: 150, extremo: 280 };
+
+  var particulas = [];
+  var vivas = 0;
+  var tAnterior = null;
+
+  function tope() { return TOPES[P.nivel] || TOPES.normal; }
+
+  function asegurar(n) {
+    while (particulas.length < n) {
+      particulas.push({ x: 0, y: 0, vx: 0, vy: 0, vida: 0, total: 1,
+                        tono: 0, r: 1, tipo: 0, gravedad: 0, nacida: -1 });
+    }
   }
 
-  function encender(f) {
-    activo = true;
-    if (typeof f === 'number') fuerza = Math.max(0, Math.min(1, f));
-    return { activo: activo, fuerza: fuerza, quieto: quieto };
-  }
-  function apagar() { activo = false; return { activo: activo }; }
+  /* Emitir busca un hueco: primero una muerta; si no hay, la que le queda menos
+     PROPORCION de su vida, y nunca una nacida en este mismo cuadro.
 
-  return {
-    encender: encender,
-    apagar: apagar,
-    get activo() { return activo; },
-    get fuerza() { return fuerza; },
-    get quieto() { return quieto; },
-    grado: grado,
-    veloFondo: veloFondo,
-    tinte: tinte,
-    filtroCss: filtroCss,
-    despues: despues
+     Las dos condiciones son necesarias y las dos costaron un bug. Reciclando
+     por vida restante absoluta, las chispas —que viven medio segundo— eran
+     siempre las candidatas frente al polvo, que vive cinco: un acierto emitia
+     26 chispas y cada una pisaba a la anterior, asi que sobrevivia UNA. Por
+     proporcion, una chispa recien nacida esta al 100% de su vida y no la toca
+     nadie. El filtro por cuadro es el cinturon: sin el, una rafaga grande
+     igual podria empezar a comerse su propia cola. */
+  var cuadroActual = 0;
+  function emitir(x, y, opciones) {
+    asegurar(tope());
+    var p = null, peor = Infinity;
+    for (var i = 0; i < particulas.length && i < tope(); i++) {
+      var q = particulas[i];
+      if (q.vida <= 0) { p = q; break; }
+      if (q.nacida === cuadroActual) continue;
+      var frac = q.vida / q.total;
+      if (frac < peor) { peor = frac; p = q; }
+    }
+    if (!p) return;
+    p.nacida = cuadroActual;
+    p.x = x; p.y = y;
+    p.vx = opciones.vx || 0;
+    p.vy = opciones.vy || 0;
+    p.total = p.vida = opciones.vida || 1;
+    p.tono = opciones.tono || 0;
+    p.r = opciones.r || 2;
+    p.tipo = opciones.tipo || 0;
+    p.gravedad = opciones.gravedad || 0;
+  }
+
+  // Ruido barato y repetible: el mismo instante da el mismo resultado, que es
+  // lo que permite capturar una escena y verificarla.
+  function azar(s) {
+    var x = Math.sin(s * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  P.capa('particulas', { fase: 'sobre', umbral: .12 }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H, e = ctx.escena, n = ctx.n;
+    var dt = (tAnterior === null) ? .016 : Math.min(.05, Math.max(0, ctx.t - tAnterior));
+    tAnterior = ctx.t;
+    cuadroActual++;
+    asegurar(tope());
+
+    var raiz = P.tonoDe ? P.tonoDe(e.color) : 220;
+
+    /* --- emisores --- */
+
+    // Polvo del aire: continuo, poco, y mas cuanto mas descubierto.
+    var cuantoPolvo = n * 1.6;
+    for (var i = 0; i < cuantoPolvo; i++) {
+      var s = Math.floor(ctx.t * 60) + i * 13;
+      emitir(azar(s) * W, azar(s + 7) * H, {
+        vx: (azar(s + 3) - .5) * 12, vy: -6 - azar(s + 11) * 12,
+        vida: 2.5 + azar(s + 5) * 2.5, tono: (raiz + azar(s + 9) * 120) % 360,
+        r: 1 + azar(s + 17) * 2.2, tipo: 0
+      });
+    }
+
+    // Chispas de acertar: una sola vez, un puñado, y salen de la figura.
+    var dtAc = ctx.desde('acierto');
+    if (dtAc >= 0 && dtAc < dt * 1.5) {
+      for (var j = 0; j < 26; j++) {
+        var a = j / 26 * 6.2832 + azar(j) * .3;
+        var vel = 90 + azar(j + 40) * 190;
+        emitir(e.fx, e.fy, {
+          vx: Math.cos(a) * vel, vy: Math.sin(a) * vel,
+          vida: .5 + azar(j + 60) * .7, tono: (j * 14 + ctx.t * 30) % 360,
+          r: 2 + azar(j + 80) * 3, tipo: 1, gravedad: 120
+        });
+      }
+    }
+
+    // Fallar tambien deja algo, pero cae en vez de estallar: la diferencia
+    // entre las dos se tiene que ver sin leer ningun cartel.
+    var dtFa = ctx.desde('fallo');
+    if (dtFa >= 0 && dtFa < dt * 1.5) {
+      for (var f = 0; f < 10; f++) {
+        emitir(e.fx + (azar(f) - .5) * e.E, e.fy, {
+          vx: (azar(f + 20) - .5) * 30, vy: 20 + azar(f + 30) * 40,
+          vida: .8 + azar(f + 50) * .5, tono: (raiz + 200) % 360,
+          r: 1.5 + azar(f + 70) * 2, tipo: 2, gravedad: 220
+        });
+      }
+    }
+
+    // Anillo al cambiar de lugar.
+    var dtLu = ctx.desde('lugar');
+    if (dtLu >= 0 && dtLu < dt * 1.5) {
+      for (var k = 0; k < 34; k++) {
+        var ak = k / 34 * 6.2832;
+        emitir(e.fx, e.fy, {
+          vx: Math.cos(ak) * 150, vy: Math.sin(ak) * 150 * .55,
+          vida: 1.1, tono: (raiz + k * 10) % 360, r: 2.5, tipo: 1
+        });
+      }
+    }
+
+    // Rastro de Bel: solo mientras camina de verdad.
+    if (Math.abs(e.belX - (e.belXAnterior === undefined ? e.belX : e.belXAnterior)) > .0004) {
+      emitir(e.belX * W, e.piso - H * .02, {
+        vx: (azar(ctx.t * 30) - .5) * 10, vy: -14,
+        vida: .9, tono: (ctx.t * 40) % 360, r: 2, tipo: 0
+      });
+    }
+    e.belXAnterior = e.belX;
+
+    // Lluvia del climax: cae desde arriba, mucha y rapida.
+    if (ctx.climax > .05) {
+      var cuanta = ctx.climax * 3.5;
+      for (var m = 0; m < cuanta; m++) {
+        var sm = Math.floor(ctx.t * 90) + m * 29;
+        emitir(azar(sm) * W, -8, {
+          vx: 0, vy: 120 + azar(sm + 3) * 220, vida: 2.4,
+          tono: (azar(sm + 5) * 360), r: 1.4 + azar(sm + 9) * 1.6, tipo: 3
+        });
+      }
+    }
+
+    /* --- mover y dibujar --- */
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    vivas = 0;
+    var lim = Math.min(particulas.length, tope());
+    for (var q = 0; q < lim; q++) {
+      var p = particulas[q];
+      if (p.vida <= 0) continue;
+      p.vida -= dt;
+      if (p.vida <= 0) continue;
+      p.vy += p.gravedad * dt;
+      p.x += p.vx * dt;
+      p.y += p.vy * dt;
+      if (p.x < -20 || p.x > W + 20 || p.y > H + 20) { p.vida = 0; continue; }
+      vivas++;
+
+      var k = p.vida / p.total;
+      var alfa = (p.tipo === 0 ? .45 : .85) * k;
+      var r = p.r * (p.tipo === 1 ? (.4 + k * .8) : 1);
+      cx.fillStyle = 'hsla(' + p.tono + ',95%,' + (p.tipo === 3 ? 72 : 64) + '%,' + alfa.toFixed(3) + ')';
+      cx.beginPath();
+      if (p.tipo === 3) {
+        // La lluvia se dibuja como raya, no como punto: una gota redonda que
+        // cae rapido se lee como suciedad en la pantalla.
+        cx.fillRect(p.x, p.y, Math.max(1, r * .6), r * 4);
+      } else {
+        cx.arc(p.x, p.y, Math.max(.5, r), 0, 6.2832);
+        cx.fill();
+      }
+    }
+    cx.restore();
+  });
+
+  /* Gancho de verificacion. El conteo POR TIPO hace falta de verdad y no es un
+     lujo: con el sistema en su tope, un acierto recicla particulas en vez de
+     sumarlas, asi que el total no se mueve y mirandolo solo a el parece que el
+     acierto no hizo nada. Lo que cambia es la mezcla. */
+  P.particulas = function () {
+    var porTipo = [0, 0, 0, 0];
+    for (var i = 0; i < particulas.length; i++) {
+      var p = particulas[i];
+      if (p.vida > 0 && porTipo[p.tipo] !== undefined) porTipo[p.tipo]++;
+    }
+    return { vivas: vivas, tope: tope(), reservadas: particulas.length,
+             polvo: porTipo[0], chispas: porTipo[1], caida: porTipo[2], lluvia: porTipo[3] };
   };
+
 })();
 
 </script>
@@ -5694,7 +6702,34 @@ var Naipes = (function () {
     }
   }
 
-  return { dibujar: dibujar, dorso: dorso, ARCANOS: ARCANOS };
+  /* El nacar del filete.
+
+     Las laminas de tarot no brillan, y estas tampoco deberian brillar solas: el
+     nacar existe porque el mundo alrededor esta deformandose y una carta
+     perfectamente quieta en el medio se ve pegada encima. Es lo minimo para que
+     la carta pertenezca a la escena, no un adorno.
+
+     Se llama aparte y no desde dibujar() porque las cartas se pintan una vez y
+     se guardan como imagen; el brillo tiene que poder animarse por cuadro sin
+     obligar a redibujar la lamina entera. */
+  function nacar(cx, An, Al, t, fuerza) {
+    if (!fuerza || fuerza <= .01) return;
+    var m = Math.max(3, An * .035);
+    var giro = (t * 40) % 360;
+    var g = cx.createLinearGradient(0, 0, An, Al);
+    for (var i = 0; i <= 3; i++) {
+      g.addColorStop(i / 3, 'hsla(' + ((giro + i * 90) % 360) + ',95%,68%,' +
+                     (fuerza * .55).toFixed(3) + ')');
+    }
+    cx.save();
+    cx.globalCompositeOperation = 'lighter';
+    cx.strokeStyle = g;
+    cx.lineWidth = Math.max(1.4, An * .014);
+    cx.strokeRect(m, m, An - m * 2, Al - m * 2);
+    cx.restore();
+  }
+
+  return { dibujar: dibujar, dorso: dorso, nacar: nacar, ARCANOS: ARCANOS };
 })();
 
 if (typeof module !== 'undefined' && module.exports) { module.exports = Naipes; }
@@ -6271,9 +7306,19 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
     relojes.push(id);
     return id;
   }
+  /* Los intervalos de la pantalla final se guardan aparte: no son timeouts de
+     la partida y frenarRelojes() no los alcanza. Sin esto, volver a jugar deja
+     el repintado anterior corriendo para siempre. */
+  var relojesFinal = [];
+  function frenarFinal() {
+    relojesFinal.forEach(clearInterval);
+    relojesFinal = [];
+  }
+
   function frenarRelojes() {
     relojes.forEach(clearTimeout);
     relojes = [];
+    frenarFinal();
   }
 
   /* ---------- estado ---------- */
@@ -6594,6 +7639,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
     if (J.paso >= Guion.PASOS) {
       destino = 'cama';
       Audio2.tensar(1);
+      if (Audio2.fondo) Audio2.fondo(1, J.climax);
     } else {
       destino = Guion.destino(c.clave, J.lugar);
       // Red de seguridad: nada que no sea el final puede llevar a la cama.
@@ -6765,8 +7811,21 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
     // Pintar despues de que la caja tenga tamano.
     luego(60, function () {
       var A = medirLienzo(frente), B = medirLienzo(dorso);
-      Naipes.dibujar(A.c2, f.clave, f.num, f.nombre, A.an, A.al, f.lectura, f.astro);
-      Naipes.dorso(B.c2, B.an, B.al);
+      /* La carta del final es la unica que se anima de verdad: se repinta a
+         ~20 por segundo para que el nacar corra por el filete. Son dos laminas
+         chicas y es la ultima pantalla del juego, asi que el gasto se puede
+         pagar; hacerlo con las tres de la mano durante toda la partida no. */
+      var tNacar = 0;
+      function repintarFinal() {
+        tNacar += .05;
+        Naipes.dibujar(A.c2, f.clave, f.num, f.nombre, A.an, A.al, f.lectura, f.astro);
+        Naipes.nacar(A.c2, A.an, A.al, tNacar, .85);
+        Naipes.dorso(B.c2, B.an, B.al);
+        Naipes.nacar(B.c2, B.an, B.al, tNacar + 1.5, .7);
+      }
+      repintarFinal();
+      var latido = setInterval(repintarFinal, 50);
+      relojesFinal.push(latido);
       // Y recien ahi darla vuelta.
       luego(700, function () {
         caja.classList.add('dada');
@@ -6845,6 +7904,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
         J.vioAhora = J.esconde;
         J.tension = Math.min(1, J.indicios.length / (Guion.PASOS - 1));
         Audio2.tensar(J.tension);
+        if (Audio2.fondo) Audio2.fondo(J.tension, J.climax);
         var iP = J.perdidos.indexOf(J.esconde);
         if (iP !== -1) J.perdidos.splice(iP, 1);
         // Que el marcador se mueva: si no, sumar un indicio no se siente.
@@ -6952,6 +8012,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
       J.u = Math.min(1, J.u + dt * .42 * RITMO);
       if (J.u >= 1 && J.destino) {
         J.destello = 1;
+        Psicodelia.evento('lugar');
         /* Apenas termina la mutacion, el lugar pasa a ser el destino. Antes
            esto esperaba al callback que avanza de paso — cinco segundos mas
            tarde — y en el medio se volvia a dibujar la figura vieja: se veia
@@ -7064,6 +8125,17 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
        createRadialGradient tira IndexSizeError y no se dibuja nada. */
     var E = Math.max(W * .08, Math.min(vertical ? W * .36 : W * .27, cabe));
     var fy = alturaDe(J.lugar, J.destino, J.u, piso, E);
+    /* Las capas de la psicodelia necesitan saber donde esta la figura y de que
+       color es el lugar: sin esto solo pueden hacer efectos de pantalla
+       completa, que son justamente los que se notan como filtro pegado. */
+    Psicodelia.escena({ fx: fx, fy: fy, E: E, piso: piso, color: J.color,
+                        lugar: J.lugar, belX: J.belX, u: J.u });
+    // Que la imagen lata con lo que suena. Si el audio esta apagado devuelve 0
+    // y las capas que lo usan simplemente no hacen nada.
+    /* Audio2 y no Audio: el modulo se llama asi justamente porque 'Audio' es el
+       constructor nativo del navegador. Escrito 'Audio' esto no falla, no hace
+       nada — que es peor, porque parece andar. */
+    if (Audio2.nivelGrave) Psicodelia.alimentarAudio(Audio2.nivelGrave());
     /* Las figuras se mueven mas rapido cuanto mas descubierto esta el sueno.
        No es un efecto encima: es la misma animacion, acelerada, y por eso se
        lee como que el lugar se puso nervioso y no como un filtro. */
@@ -7283,12 +8355,22 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
        incluidas. El filtro de color va en el elemento y no en el contexto
        porque lo aplica el compositor y sale gratis. */
     Psicodelia.despues(cx, cv, W, H, t, J.tensionSuave, J.climax);
+    /* El halo de las cartas sigue a la tension igual que todo lo demas. Se
+       escribe en el contenedor y las tres cartas lo heredan: escribir en cada
+       carta por cuadro toca el layout tres veces en vez de una. */
+    var halo = Math.min(.85, Psicodelia.grado(J.tensionSuave, J.climax) * .5);
+    if (Math.abs(halo - haloPuesto) > .02) {
+      elMano.style.setProperty('--halobase', halo.toFixed(2));
+      elMano.style.setProperty('--halo', halo.toFixed(2));
+      haloPuesto = halo;
+    }
+
     var filtro = Psicodelia.filtroCss(t, J.tensionSuave, J.climax);
     if (filtro !== filtroPuesto) { cv.style.filter = filtro; filtroPuesto = filtro; }
 
     if (!sinBucle) requestAnimationFrame(cuadro);
   }
-  var filtroPuesto = 'none';
+  var filtroPuesto = 'none', haloPuesto = -1;
   requestAnimationFrame(cuadro);
 
   /* ---------- sonido ---------- */
@@ -7329,9 +8411,19 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
       { method: 'POST', body: cv.toDataURL('image/png') });
   };
 
+  /* Ganchos de la psicodelia, para poder verificarla sin manos: cambiar el
+     nivel, leer que capas estan vivas y cuanto sale cada una. */
+  window.psico = function (nivel) { return Psicodelia.ponerNivel(nivel); };
+  window.psicoEstado = function () { return Psicodelia.estado(); };
+  window.psicoCosto = function () { return Psicodelia.costo(); };
+
   window.instante = function (figura, nombre, opciones) {
     opciones = opciones || {};
     if (figura) { J.lugar = figura; J.u = 1; J.destino = null; }
+    /* El color lo trae la carta que te dejo en este lugar, no el lugar. En una
+       partida lo setea el juego al mutar; para poder capturar un lugar suelto
+       hay que poder pasarlo a mano. */
+    if (opciones.color && !opciones.destino) J.color = opciones.color;
     if (opciones.destino) {
       J.pares = Figuras.preparar(J.lugar, opciones.destino);
       J.destino = { figura: opciones.destino, color: opciones.color || '200,200,255' };
@@ -7407,6 +8499,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
     mirada.resuelto = true;
     mirada.resultado = acierta ? 'clavado' : 'tarde';
     if (acierta) mirada.destello = 1; else mirada.fallo = 1;
+    Psicodelia.evento(acierta ? 'acierto' : 'fallo');
     resolverMirada();
     return mirada.resultado;
   };
