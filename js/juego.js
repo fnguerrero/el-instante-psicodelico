@@ -118,7 +118,7 @@
     fogonazo: 0,
     destello: 0,            // el golpe de luz al terminar una mutacion
     // Bel entra caminando en cada paso.
-    belX: -.15,
+    belX: .26,               // en el cuadro desde el arranque, no fuera
     belMeta: .26,
     ultimaFy: 0,
     corrimientoMano: 0,     // cuanto se corre la mano para centrarla en la escena
@@ -279,7 +279,11 @@
        donde termino quedando la figura. Fijandola en los dos lados, llegar()
        ponia una y el cuadro siguiente la corregia: Bel caminaba hacia un punto,
        la marca se movia, y volvia — el ida y vuelta que se veia en cada carta. */
-    if (primera) J.belX = -.15;
+    /* Ya parada en su lugar: entrando desde fuera del cuadro tardaba casi
+       tres segundos y el juego abria con una escena vacia. Ademas el bucle la
+       hace caminar desde que carga la pagina, asi que esta linea la mandaba de
+       vuelta al borde para que entrara una segunda vez — la unica que se veia. */
+    if (primera && isFinite(J.belMeta)) J.belX = J.belMeta;
 
     elRotulo.textContent = l.nombre;
     elRotulo.classList.add('ver');
@@ -792,6 +796,10 @@
         J.lugar = J.destino.figura;
         J.color = J.destino.color;
         J.destino = null;
+        /* El rotulo va con la figura. Esperando al callback quedaba nombrando
+           el lugar anterior mientras el nuevo ya estaba en pantalla. */
+        var lug = Guion.lugar(J.lugar);
+        if (lug) elRotulo.textContent = lug.nombre;
       }
     }
     if (J.fogonazo > 0) J.fogonazo = Math.max(0, J.fogonazo - dt * .5 * RITMO);
