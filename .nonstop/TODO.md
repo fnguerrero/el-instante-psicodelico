@@ -1,65 +1,80 @@
-# TODO — El instante, tanda 3: las 100 mejoras
+# TODO — tanda 4: 50 modificaciones psicodélicas
 
-Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado
-Cada linea agrupa varias mejoras numeradas y se verifica junta.
+Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho y verificado · `[!]` bloqueado
 
-## A · Bugs y robustez (1-14)
+## Andamiaje (primero, para poder verificar sin manos)
 
-- [x] G1 · 1 sin doble jugada por doble click · 2 el resize repinta naipes sin duplicar · 3 clearTimeout de los `luego` al reiniciar · 4 sin fugas de setInterval · verif: doble click no gasta dos cartas; 3 resizes seguidos no dejan naipes rotos
-- [x] G2 · 5 tocar el instante antes de que aparezca no cuenta · 6 teclado no dispara con foco en un boton · 7 el pointerdown no atraviesa el cierre ni el final · 8 sin doble resolucion de la mirada · verif: forzar cada caso y ver el contador
-- [x] G3 · 9 audio: no acumular osciladores si se juega rapido · 10 cortar el colchon al terminar · 11 el interval del colchon se limpia · 12 resume del contexto si el navegador lo suspende · verif: contar nodos tras 20 jugadas
-- [x] G4 · 13 canvas: limitar DPR en pantallas enormes · 14 no repintar naipes si el tamano no cambio · verif: medir tiempo de pintarNaipes
+- [x] 00 · Ganchos de prueba: `psico(nivel)`, `psicoEstado()`, `psicoCosto()` y captura con filtro aplicado · verif: los tres responden y devuelven datos coherentes
 
-## B · Claridad (15-28)
+## Bloque A — pipeline y control (1-6)
 
-- [x] G5 · 15 la primera partida muestra una guia de una linea en la primera jugada · 16 el aviso del instante aparece un poco antes · 17 tooltip del marcador · 18 el marcador dice cuantas van sobre el total · verif: DOM tras empezar
-- [x] G6 · 19 el cierre resume que encontro y que se perdio · 20 boton "ver de nuevo" en el final · 21 el final permite volver a jugar · 22 la portada recuerda que se juega con click o barra · verif: recorrer el cierre
-- [x] G7 · 23 rotulo del lugar con el numero de paso · 24 al errar se ve que indicio se perdio (silueta) · 25 los indicios juntados se listan al final · 26 el marcador se resalta un instante al sumar · verif: capturas y DOM
-- [x] G8 · 27 modo "sin puntería": si errás 3 seguidas, la ventana se agranda · 28 la dificultad se anuncia cuando cambia · verif: forzar 3 errores y medir la ventana
+- [x] 01 · Pipeline de capas con presupuesto de tiempo y apagado automático · verif: `psicoCosto()` reporta ms por capa
+- [x] 02 · Tres niveles de intensidad (suave/normal/extremo) en localStorage · verif: cambiar nivel altera `psicoEstado().nivel` y sobrevive recarga
+- [x] 03 · Guarda anti-estroboscopio: ningún pulso de pantalla completa sobre 3 Hz · verif: medir frecuencia máxima de los pulsos declarados
+- [x] 04 · Auto-degradado: si el cuadro se pasa de 6 ms, apagar capas caras · verif: forzar presupuesto bajo y ver capas apagadas
+- [x] 05 · Revisión de reduced-motion sobre todas las capas nuevas · verif: con el flag activo, cero capas de movimiento
+- [x] 06 · Control de intensidad visible en pantalla · verif: el control existe, cambia el nivel y se lee
 
-## C · Presentacion (29-48)
+## Bloque B — color y luz (7-18)
 
-- [x] G9 · 29 transicion entre lugares con fundido · 30 el titulo del lugar entra desde arriba · 31 el relato entra con desplazamiento leve · 32 sombra bajo Bel · verif: capturas
-- [x] G10 · 33 estrellas fugaces ocasionales · 34 niebla baja sobre el piso · 35 el piso refleja apenas la figura · 36 vineteado en los bordes · verif: capturas
-- [x] G11 · 37 la figura tiene halo propio segun su color · 38 las piezas al volar dejan estela · 39 destello al completar la mutacion · 40 el fogonazo tine tambien el suelo · verif: capturas de la mutacion
-- [x] G12 · 41 hover de carta con brillo dorado en el borde · 42 la carta jugada sale hacia la figura · 43 las otras dos se van hacia abajo · 44 el mazo restante se insinua al costado · verif: DOM y capturas
-- [x] G13 · 45 portada con las cartas de fondo · 46 el titulo con un brillo lento · 47 el boton late apenas · 48 transicion de portada mas cuidada · verif: captura de portada
-- [x] G14 · 49 el cierre entra por partes · 50 la carta final tiene resplandor detras · verif: DOM del final
+- [x] 07 · Paleta propia por lugar, no un tinte único · verif: capturar 4 lugares y comprobar tonos distintos
+- [x] 08 · Plasma de fondo (campo de color que se mueve) · verif: captura + dos cuadros distintos
+- [x] 09 · Aura cromática alrededor de la figura · verif: captura muestra halo de color
+- [x] 10 · Estrellas que cambian de color · verif: captura del cielo con estrellas de colores
+- [x] 11 · Halo iridiscente en Bel · verif: captura recortada de Bel
+- [x] 12 · Suelo con reflejo de color invertido · verif: captura de la franja del piso
+- [x] 13 · Viñeta de color en vez de negra · verif: medir color en las esquinas
+- [x] 14 · Destello arcoíris al acertar el instante · verif: forzar acierto y capturar
+- [x] 15 · Gradiente radial rotante detrás de la figura · verif: dos capturas con ángulos distintos
+- [x] 16 · Curva de color: subir saturación sin quemar luces · verif: medir que no haya canal saturado en 255
+- [x] 17 · Contraluz de color en el horizonte · verif: captura de la línea del piso
+- [x] 18 · Inversión parcial de color en el clímax · verif: captura con climax=1
 
-## D · Naipes (51-62)
+## Bloque C — deformación (19-30)
 
-- [x] G15 · 51 textura de papel en la lamina · 52 el filete con desgaste leve · 53 las tintas con registro imperfecto · verif: hoja de contacto
-- [x] G16 · 54 mejorar El Loco (perro) · 55 mejorar El Mundo (guirnalda) · 56 mejorar La Torre (proporcion) · verif: hoja de contacto
-- [x] G17 · 57 mejorar La Rueda (criaturas) · 58 mejorar Los Enamorados (tercera figura) · 59 mejorar La Templanza (jarras) · verif: hoja de contacto
-- [x] G18 · 60 numeral con mejor cuerpo · 61 cartela con relieve · 62 la lectura no se corta nunca · verif: las 15 cartas con nombres largos
-- [x] G19 · 63 dorso mas rico · 64 la carta final gira con brillo al voltear · verif: captura del dorso
+- [x] 19 · Ondulación también vertical · verif: captura con líneas rectas deformadas en los dos ejes
+- [x] 20 · Remolino centrado en la figura · verif: captura muestra torsión
+- [x] 21 · Respiración de zoom ligada a la tensión · verif: dos capturas con escala distinta
+- [x] 22 · Caleidoscopio en la transformación · verif: captura durante la mutación
+- [x] 23 · Ondas concéntricas al jugar una carta · verif: captura en el momento del juego
+- [x] 24 · Rotación leve del cuadro entero · verif: medir inclinación de la línea del piso
+- [x] 25 · Barril / ojo de pez suave · verif: captura con bordes curvados
+- [x] 26 · Corte en tiras verticales además de horizontales · verif: captura con desplazamiento en columnas
+- [x] 27 · Desplazamiento por bloques tipo glitch, ocasional · verif: forzar el evento y capturar
+- [x] 28 · Temblor en el clímax · verif: dos capturas seguidas con offset distinto
+- [x] 29 · Espejo simétrico intermitente · verif: captura con simetría
+- [x] 30 · Estiramiento cromático en los bordes · verif: captura de una esquina
 
-## E · Escena y figuras (65-76)
+## Bloque D — rastro y partículas (31-40)
 
-- [x] G20 · 65 montania: durmientes y vagon quieto · 66 casa: puerta con picaporte y sendero · 67 arbol: hojas que se mueven · verif: capturas
-- [x] G21 · 68 laguna: juncos en la orilla · 69 faro: rocas en la base · 70 calesita: piso con reflejo · verif: capturas
-- [x] G22 · 71 luna: mas relieve · 72 platillo: ventanas en la cupula · 73 bandada: mejor forma de ala · verif: capturas
-- [x] G23 · 74 cama: mesa de luz con la lampara · 75 puerta: marco con relieve · 76 reloj: pendulo · verif: capturas
+- [x] 31 · Sistema de partículas propio, con tope y reciclado · verif: contar partículas vivas y que no crezca sin límite
+- [x] 32 · Polvo flotante ambiente · verif: captura con motas
+- [x] 33 · Chispas al acertar · verif: forzar acierto y contar partículas nuevas
+- [x] 34 · Rastro de color detrás de Bel al caminar · verif: captura con Bel en movimiento
+- [x] 35 · Trazo de las piezas durante la mutación · verif: captura a mitad de transformación
+- [x] 36 · Anillos expansivos al cambiar de lugar · verif: captura al completar la mutación
+- [x] 37 · Lluvia de puntos en el clímax · verif: captura con climax alto
+- [x] 38 · Estela multicolor por figura, con el color del lugar · verif: capturas de dos lugares distintos
+- [x] 39 · Partículas que reaccionan al acierto y al fallo distinto · verif: forzar los dos y comparar
+- [x] 40 · Presupuesto de partículas por nivel de intensidad · verif: el tope cambia con el nivel
 
-## F · Sonido (77-86)
+## Bloque E — naipes, UI y pantallas (41-46)
 
-- [x] G24 · 77 cada lugar tiene su color sonoro · 78 el colchon cambia al llegar · 79 volumen general mas parejo · verif: contar nodos por lugar
-- [x] G25 · 80 el instante suena mientras el anillo se cierra · 81 tic al acercarse a la marca · 82 acierto y error mas distintos · verif: nodos por caso
-- [x] G26 · 83 la carta final tiene su acorde · 84 el volteo suena · 85 fundido del colchon al terminar · 86 recordar si el sonido estaba apagado · verif: estado de audio
-- [x] G27 · 87 control de volumen ademas del mute · verif: cambiar volumen y medir
+- [x] 41 · Naipes con brillo iridiscente en el borde · verif: captura de una carta
+- [x] 42 · Dorso del naipe animado · verif: dos capturas del dorso distintas
+- [x] 43 · Marcador de indicios con color que muta · verif: captura del marcador
+- [x] 44 · Portada psicodélica · verif: captura de la portada
+- [x] 45 · Cierre y carta final con tratamiento propio · verif: captura del final
+- [x] 46 · Aura en la carta bajo el cursor · verif: forzar hover y capturar
 
-## G · Textos (88-94)
+## Bloque F — audio reactivo (47-50)
 
-- [x] G28 · 88 revisar los 14 textos de llegada · 89 revisar los 14 de vuelta · 90 revisar los 14 indicios · verif: lectura completa y largo maximo
-- [x] G29 · 91 las frases de accion mas variadas · 92 los 4 finales mas afilados · 93 la carta de Bel revisada · verif: lectura
-- [x] G30 · 94 ningun texto se corta en celular · verif: medicion de alturas a 390x760
-
-## H · Accesibilidad (95-100)
-
-- [x] G31 · 95 foco visible en todo lo clickeable · 96 roles y aria-label · 97 las cartas se juegan con Enter · verif: navegacion por teclado
-- [x] G32 · 98 respeta prefers-reduced-motion · 99 contraste del texto sobre la escena · 100 el juego se puede terminar solo con teclado · verif: partida completa sin mouse
+- [x] 47 · Analizador de audio conectado al pipeline · verif: `psicoEstado().audio` devuelve nivel entre 0 y 1
+- [x] 48 · Pulso visual con los graves · verif: correlacionar nivel de audio con escala del cuadro
+- [x] 49 · Drone que sube con la tensión · verif: el oscilador existe y su ganancia sigue a la tensión
+- [x] 50 · Shimmer en el clímax · verif: la voz suena solo con climax alto
 
 ## Cierre
 
-- [x] Verificacion final contra los 6 criterios y build
-- [x] INFORME.md de la tanda 3
+- [x] 51 · Verificación final contra los criterios de la SPEC · verif: los 8 criterios en verde
+- [x] 52 · Capturas del look final (26/45/65 KB). NO se tocó Portfolio/: esa entrada es de la versión original y la lleva otra sesión · verif: 3 imágenes bajo 100 KB

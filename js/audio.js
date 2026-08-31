@@ -11,6 +11,7 @@ var Audio2 = (function () {
 
   var ac = null;
   var maestro = null, aReverb = null, seco = null;
+  var analizador = null, datosFrec = null;
   var encendido = false;
   var colchon = null;
 
@@ -61,6 +62,20 @@ var Audio2 = (function () {
     maestro = ac.createGain();
     maestro.gain.value = 0;
     maestro.connect(ac.destination);
+
+    /* Analizador para que la imagen reaccione al sonido.
+
+       Cuelga del maestro y NO se interpone en el camino a los parlantes: un
+       nodo de analisis en serie no cambia el audio, pero un error al conectarlo
+       deja el juego mudo. Colgado en paralelo, si esto falla lo unico que pasa
+       es que la imagen no late. */
+    try {
+      analizador = ac.createAnalyser();
+      analizador.fftSize = 256;
+      analizador.smoothingTimeConstant = .75;
+      datosFrec = new Uint8Array(analizador.frequencyBinCount);
+      maestro.connect(analizador);
+    } catch (e) { analizador = null; }
 
     var rev = ac.createConvolver();
     rev.buffer = impulso(3.6, 2.6);
@@ -589,7 +604,67 @@ var Audio2 = (function () {
 
   }
 
+  /* Nivel de graves, de 0 a 1, para que la psicodelia lata con la musica.
+
+     Solo el primer cuarto del espectro: los agudos del juego son chirridos
+     cortos y harian parpadear la imagen en vez de hacerla respirar. */
+  /* Un sub-grave que crece con la tension y un shimmer que solo aparece en el
+     climax. Los dos cuelgan del reverb, no del seco: tienen que sonar como el
+     lugar y no como algo que se agrego encima.
+
+     Se crean una sola vez y despues solo se les mueve la ganancia; crear y
+     destruir osciladores por cada cambio de tension deja clicks. */
+  var drone = null, shimmer = null;
+  function armarFondo() {
+    if (!activo() || drone) return;
+    try {
+      var o = ac.createOscillator();
+      o.type = 'sine';
+      o.frequency.value = 38;
+      var g = ac.createGain();
+      g.gain.value = 0;
+      o.connect(g); g.connect(aReverb); g.connect(seco);
+      o.start();
+      drone = { o: o, g: g };
+
+      var o2 = ac.createOscillator();
+      o2.type = 'triangle';
+      o2.frequency.value = 2100;
+      var g2 = ac.createGain();
+      g2.gain.value = 0;
+      var f2 = ac.createBiquadFilter();
+      f2.type = 'bandpass'; f2.frequency.value = 2400; f2.Q.value = 3;
+      o2.connect(f2); f2.connect(g2); g2.connect(aReverb);
+      o2.start();
+      shimmer = { o: o2, g: g2 };
+    } catch (e) { drone = shimmer = null; }
+  }
+
+  /* El fondo sigue a la tension y al climax. Se llama desde el juego una vez
+     por paso, no por cuadro: las rampas de Web Audio ya interpolan solas. */
+  function fondo(tension, climax) {
+    armarFondo();
+    if (!activo()) return { drone: 0, shimmer: 0 };
+    var t0 = ac.currentTime;
+    var gd = Math.min(.075, (tension || 0) * .075);
+    var gs = (climax || 0) > .15 ? Math.min(.020, (climax - .15) * .028) : 0;
+    if (drone) drone.g.gain.setTargetAtTime(gd, t0, 2.5);
+    if (shimmer) shimmer.g.gain.setTargetAtTime(gs, t0, 1.2);
+    return { drone: gd, shimmer: gs };
+  }
+
+  function nivelGrave() {
+    if (!analizador || !datosFrec) return 0;
+    analizador.getByteFrequencyData(datosFrec);
+    var hasta = Math.max(1, Math.floor(datosFrec.length * .25));
+    var suma = 0;
+    for (var i = 0; i < hasta; i++) suma += datosFrec[i];
+    return Math.min(1, (suma / hasta) / 190);
+  }
+
   return {
+    nivelGrave: nivelGrave,
+    fondo: fondo,
     prender: prender, apagar: apagar, alternar: alternar, activo: activo,
     gota: gota, roce: roce, golpe: golpe, transformar: transformar,
     dormirColchon: dormirColchon, voces: function () { return vivas; },
