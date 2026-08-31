@@ -1108,12 +1108,22 @@ var Naipes = (function () {
     } while (cx.measureText(texto).width > An - m * 5 && cuerpo > An * .045);
     cx.fillText(texto, An / 2, cy);
 
-    // La lectura, abajo, en dos renglones como maximo.
+    /* La lectura, abajo, en dos renglones como maximo.
+
+       Tres cosas la hacian dificil de leer y hay que corregir las tres juntas,
+       porque arreglar una sola no alcanza: iba al 72% de opacidad sobre papel
+       crema (contraste justo), a un cuerpo 30% menor que el del nombre, y en
+       cursiva. Chico + claro + inclinado se suma. */
     if (lectura) {
-      cx.fillStyle = 'rgba(43,36,29,.72)';
-      var cuerpo2 = An * .072;
-      cx.font = 'italic 400 ' + Math.round(cuerpo2) + "px 'Cormorant Garamond',Georgia,serif";
-      var ancho = An - m * 4.4;
+      cx.fillStyle = 'rgba(43,36,29,.94)';
+      var cuerpo2 = An * .082;
+      cx.font = 'italic 500 ' + Math.round(cuerpo2) + "px 'Cormorant Garamond',Georgia,serif";
+      /* El ancho util se mide contra el filete interior, que esta en m*1.9, no
+         contra el borde de la carta: con m*3.4 el texto llegaba justo hasta la
+         linea y quedaba pegado a los dos costados. Con m*4.6 queda un respiro
+         a cada lado; lo que ya no entra pasa a dos renglones, que ahora tienen
+         lugar de sobra. */
+      var ancho = An - m * 4.6;
       var palabras = lectura.split(' ');
       var lineas = [], actual = '';
       palabras.forEach(function (p) {
@@ -1123,13 +1133,21 @@ var Naipes = (function () {
       });
       if (actual) lineas.push(actual);
       lineas = lineas.slice(0, 2);
-      /* El bloque crece hacia abajo, asi que con dos renglones hay que
-         arrancar mas arriba — pero no tanto como para meterse en la cartela.
-         Con .868 y el cuerpo anterior, la primera linea quedaba a dos pixeles
-         del borde de la cartela y se veian encimadas. */
-      var y0 = Al * (lineas.length > 1 ? .855 : .880);
+      /* El bloque se ancla por abajo y no por arriba. Anclado arriba, cada vez
+         que un texto caia en dos renglones el segundo se iba contra el filete
+         del borde — que es lo que le pasaba a El Mundo. Midiendo desde el piso
+         disponible hacia arriba, el bloque entra siempre, tenga uno o dos. */
+      var interlinea = cuerpo2 * 1.12;
+      /* El piso es el centro de la ultima linea, no su borde: con baseline
+         'middle' hay que descontar media altura mas el descendente, si no la
+         cola de la p y de la g se comen el filete. */
+      var piso = Al - m * 2.5 - cuerpo2 * .75;
+      var y0 = piso - (lineas.length - 1) * interlinea;
+      // Red de seguridad: nunca meterse en la cartela del nombre.
+      var minimo = cy + ch / 2 + cuerpo2 * .62;
+      if (y0 < minimo) y0 = minimo;
       lineas.forEach(function (ln, i) {
-        cx.fillText(ln, An / 2, y0 + i * cuerpo2 * 1.15);
+        cx.fillText(ln, An / 2, y0 + i * interlinea);
       });
     }
   }

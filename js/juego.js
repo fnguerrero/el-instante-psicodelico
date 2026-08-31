@@ -819,8 +819,18 @@
                               Math.round(17 + q3 * 8) + ',' +
                               Math.round(48 + q3 * 34 + cl * 22) + ')');
     cx.fillStyle = g;
-    cx.fillRect(0, 0, W, H);
+    /* Con la psicodelia encendida el fondo se repinta translucido: lo del
+       cuadro anterior no se borra del todo y las figuras dejan estela. Con el
+       modo apagado veloFondo() devuelve 1 y esto es el fillRect de siempre. */
+    var velo = Psicodelia.veloFondo(J.tensionSuave, J.climax);
+    if (velo < 1) { cx.globalAlpha = velo; cx.fillRect(0, 0, W, H); cx.globalAlpha = 1; }
+    else cx.fillRect(0, 0, W, H);
     Cielo.dibujar(cx, cielo, W, H, t);
+    /* El tinte va aca y no al final: sobre el cielo se lleva el tono entero,
+       pero las figuras se dibujan despues y conservan el suyo. Si fuera al
+       final, la calesita roja y la casa amarilla terminarian del mismo color
+       que el cielo y el lugar dejaria de reconocerse. */
+    Psicodelia.tinte(cx, W, H, t, J.tensionSuave, J.climax);
 
     /* En vertical la pantalla es angosta y alta: si el piso se queda abajo del
        todo, queda un tercio de escena y dos tercios de cielo vacío. */
@@ -1076,8 +1086,16 @@
     cx.fillStyle = gAba;
     cx.fillRect(0, H * .84, W, H * .16);
 
+    /* Ultimo de todo: la deformacion va sobre el cuadro terminado, viñetas
+       incluidas. El filtro de color va en el elemento y no en el contexto
+       porque lo aplica el compositor y sale gratis. */
+    Psicodelia.despues(cx, cv, W, H, t, J.tensionSuave, J.climax);
+    var filtro = Psicodelia.filtroCss(t, J.tensionSuave, J.climax);
+    if (filtro !== filtroPuesto) { cv.style.filter = filtro; filtroPuesto = filtro; }
+
     if (!sinBucle) requestAnimationFrame(cuadro);
   }
+  var filtroPuesto = 'none';
   requestAnimationFrame(cuadro);
 
   /* ---------- sonido ---------- */
