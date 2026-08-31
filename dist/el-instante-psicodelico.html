@@ -21,6 +21,21 @@
 
   .capa{position:fixed;inset:0;pointer-events:none}
 
+  /* Las pantallas del final estaban ocultas solo con opacity y
+     pointer-events:none. Eso tapa el mouse pero no el teclado: sus botones
+     seguian en el orden de tabulacion y se podian activar con la barra
+     espaciadora — que es justo la tecla del instante. Apretar espacio para
+     mirar abria la carta a Bel en mitad de la partida. */
+  #cierre:not(.ver),
+  #final:not(.ver),
+  #sobre:not(.ver),
+  #cartaEscrita:not(.ver){visibility:hidden}
+  #cierre,#final,#sobre,#cartaEscrita{
+    transition-property:opacity,visibility;
+    transition-delay:0s,0s}
+  #cierre:not(.ver),#final:not(.ver),#sobre:not(.ver),#cartaEscrita:not(.ver){
+    transition-delay:0s,1.1s}
+
   /* ---------- portada ---------- */
   #portada{display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:20px;padding:6vw;background:radial-gradient(ellipse at 50% 45%,
@@ -4563,7 +4578,20 @@ var Psicodelia = (function () {
      que hace que se note que el mundo esta mal desde el principio. */
   function grado(tension, climax) {
     if (!activo) return 0;
-    var base = .10 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .90;
+    /* El piso es .30 y no .10.
+
+       Con .10 el juego arrancaba tecnicamente correcto y practicamente negro:
+       brillo medio de 17 sobre 255 en los trece lugares, con menos del 5% de
+       pixeles claros. En un monitor eso no es "sobrio", es una pantalla
+       apagada. Las capas de luz —aura, contraluz, plasma, suelo— tienen sus
+       umbrales entre .18 y .25, asi que ninguna llegaba a encenderse en el
+       primer lugar y la escena quedaba a oscuras esperando una tension que
+       todavia no existia.
+
+       Con .30 el primer lugar ya tiene luz propia y el recorrido hasta el
+       octavo sigue siendo igual de largo: lo que cambia es de donde arranca,
+       no cuanto sube. */
+    var base = .30 + Math.min(1, (tension || 0) * .78 + (climax || 0) * .45) * .70;
     return Math.min(1.7, base * NIVELES[nivel]);
   }
 
@@ -5117,6 +5145,42 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Psicodel
     cx.restore();
   });
 
+
+  /* Resplandor.
+
+     Lo que la luz de fondo no puede resolver: las figuras de linea fina (la
+     montaña rusa, la bandada, el arbol pelado) tienen tan poca superficie que
+     por mucho que se ilumine el aire alrededor, ellas siguen siendo hilos
+     oscuros. Medido: con la luz base sola, la montaña rusa quedaba en 31 de
+     brillo contra los 43 del resto.
+
+     El resplandor toma lo que YA es claro y lo derrama. Se hace copiando el
+     cuadro a un lienzo ocho veces mas chico y volviendolo a agrandar: el
+     escalado del navegador hace el desenfoque gratis, sin recorrer un solo
+     pixel a mano. Sumado con 'lighter', las lineas finas se expanden en halo y
+     el negro se queda negro, que es exactamente lo que hace falta. */
+  P.capa('resplandor', { fase: 'post', caro: true }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var w = Math.max(2, Math.round(W / 8)), h = Math.max(2, Math.round(H / 8));
+    var chico = P.lienzo('bloom', w, h);
+    chico.cx.setTransform(1, 0, 0, 1, 0, 0);
+    chico.cx.globalCompositeOperation = 'source-over';
+    chico.cx.globalAlpha = 1;
+    chico.cx.clearRect(0, 0, w, h);
+    chico.cx.drawImage(ctx.cv, 0, 0, w, h);
+
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.globalCompositeOperation = 'lighter';
+    // Dos pasadas de distinto tamano: la chica da el nucleo del halo y la
+    // grande el derrame lejano. Con una sola se ve como una mancha.
+    cx.globalAlpha = .34 + ctx.n * .10;
+    cx.drawImage(chico.cv, 0, 0, w, h, 0, 0, W, H);
+    cx.globalAlpha = .16 + ctx.n * .08;
+    cx.drawImage(chico.cv, 0, 0, w, h, -W * .04, -H * .04, W * 1.08, H * 1.08);
+    cx.restore();
+  });
+
 })();
 
 </script>
@@ -5337,6 +5401,39 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Psicodel
     g.addColorStop(1, 'rgba(255,255,255,0)');
     cx.fillStyle = g;
     cx.fillRect(0, y, ctx.W, alto);
+    cx.restore();
+  });
+
+
+  /* Luz base sobre la figura.
+
+     Sin umbral y sin depender de la tension: es la unica capa que existe para
+     que se VEA, no para que se deforme. El juego original era oscuro a
+     proposito, pero era oscuro con contraste; al meterle color encima, las
+     figuras de linea fina (la montaña rusa, la bandada, el arbol) se perdian
+     contra el fondo y quedaba una pantalla negra con textos flotando.
+
+     Ilumina un ovalo alrededor de lo que haya delante, con el color del lugar,
+     bastante abierto para que no se lea como un foco de teatro. */
+  P.capa('luzbase', { fase: 'cielo', movimiento: false }, function (ctx) {
+    var cx = ctx.cx, e = ctx.escena;
+    var tono = tonoDe(e.color);
+    var rx = Math.max(e.E * 2.6, ctx.W * .30);
+    var ry = Math.max(e.E * 2.0, ctx.H * .40);
+    var g = cx.createRadialGradient(e.fx, e.fy, 0, e.fx, e.fy, 1);
+    // Gradiente circular estirado a ovalo con la transformacion, que es mas
+    // barato que dibujar un radial elipsoide a mano.
+    cx.save();
+    cx.translate(e.fx, e.fy);
+    cx.scale(rx / ry, 1);
+    cx.translate(-e.fx, -e.fy);
+    var g2 = cx.createRadialGradient(e.fx, e.fy, ry * .10, e.fx, e.fy, ry);
+    g2.addColorStop(0, 'hsla(' + tono + ',70%,62%,.30)');
+    g2.addColorStop(.45, 'hsla(' + tono + ',72%,55%,.15)');
+    g2.addColorStop(1, 'hsla(' + tono + ',75%,50%,0)');
+    cx.globalCompositeOperation = 'lighter';
+    cx.fillStyle = g2;
+    cx.beginPath(); cx.arc(e.fx, e.fy, ry, 0, 6.2832); cx.fill();
     cx.restore();
   });
 
