@@ -1,77 +1,65 @@
-# TODO — Duermevela
+# TODO — El instante, tanda 3: las 100 mejoras
 
-Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho y verificado · `[!]` bloqueado
+Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho · `[!]` bloqueado
+Cada linea agrupa varias mejoras numeradas y se verifica junta.
 
-## Andamiaje de verificación
+## A · Bugs y robustez (1-14)
 
-- [x] Hook `window.pruebaPartida()` que juegue una partida entera acelerada y
-      devuelva el recorrido, los errores y si llegó al cierre · verif: correrlo
-      y que devuelva 8 escenas y cierre true
-- [x] Hook `window.auditar()` que recorra todas las combinaciones carta/escena
-      sin dibujar y reporte figuras faltantes y textos `undefined` · verif:
-      correrlo y que devuelva 0 faltantes
+- [x] G1 · 1 sin doble jugada por doble click · 2 el resize repinta naipes sin duplicar · 3 clearTimeout de los `luego` al reiniciar · 4 sin fugas de setInterval · verif: doble click no gasta dos cartas; 3 resizes seguidos no dejan naipes rotos
+- [x] G2 · 5 tocar el instante antes de que aparezca no cuenta · 6 teclado no dispara con foco en un boton · 7 el pointerdown no atraviesa el cierre ni el final · 8 sin doble resolucion de la mirada · verif: forzar cada caso y ver el contador
+- [x] G3 · 9 audio: no acumular osciladores si se juega rapido · 10 cortar el colchon al terminar · 11 el interval del colchon se limpia · 12 resume del contexto si el navegador lo suspende · verif: contar nodos tras 20 jugadas
+- [x] G4 · 13 canvas: limitar DPR en pantallas enormes · 14 no repintar naipes si el tamano no cambio · verif: medir tiempo de pintarNaipes
 
-## Figuras nuevas (para sostener 8 escenas)
+## B · Claridad (15-28)
 
-- [x] Figura + pintor: calesita · verif: captura, apoya en el suelo
-- [x] Figura + pintor: faro · verif: captura, apoya y el haz gira
-- [x] Figura + pintor: laguna (espejo de agua) · verif: captura, refleja
-- [x] Figura + pintor: barca · verif: captura, flota sobre la laguna
-- [x] Figura + pintor: reloj · verif: captura, las agujas se mueven
-- [x] Registrar bases de apoyo de las figuras nuevas · verif: captura de cada
-      una mostrando contacto o vuelo correcto
+- [x] G5 · 15 la primera partida muestra una guia de una linea en la primera jugada · 16 el aviso del instante aparece un poco antes · 17 tooltip del marcador · 18 el marcador dice cuantas van sobre el total · verif: DOM tras empezar
+- [x] G6 · 19 el cierre resume que encontro y que se perdio · 20 boton "ver de nuevo" en el final · 21 el final permite volver a jugar · 22 la portada recuerda que se juega con click o barra · verif: recorrer el cierre
+- [x] G7 · 23 rotulo del lugar con el numero de paso · 24 al errar se ve que indicio se perdio (silueta) · 25 los indicios juntados se listan al final · 26 el marcador se resalta un instante al sumar · verif: capturas y DOM
+- [x] G8 · 27 modo "sin puntería": si errás 3 seguidas, la ventana se agranda · 28 la dificultad se anuncia cuando cambia · verif: forzar 3 errores y medir la ventana
 
-## Mazo
+## C · Presentacion (29-48)
 
-- [x] Ampliar el mazo a 14 cartas con figura y lectura propias · verif:
-      `auditar()` sin faltantes
-- [x] Repartir sin repetir a lo largo de la partida y que la mano nunca quede
-      vacía en la escena 8 · verif: `pruebaPartida()` 20 veces sin mano vacía
+- [x] G9 · 29 transicion entre lugares con fundido · 30 el titulo del lugar entra desde arriba · 31 el relato entra con desplazamiento leve · 32 sombra bajo Bel · verif: capturas
+- [x] G10 · 33 estrellas fugaces ocasionales · 34 niebla baja sobre el piso · 35 el piso refleja apenas la figura · 36 vineteado en los bordes · verif: capturas
+- [x] G11 · 37 la figura tiene halo propio segun su color · 38 las piezas al volar dejan estela · 39 destello al completar la mutacion · 40 el fogonazo tine tambien el suelo · verif: capturas de la mutacion
+- [x] G12 · 41 hover de carta con brillo dorado en el borde · 42 la carta jugada sale hacia la figura · 43 las otras dos se van hacia abajo · 44 el mazo restante se insinua al costado · verif: DOM y capturas
+- [x] G13 · 45 portada con las cartas de fondo · 46 el titulo con un brillo lento · 47 el boton late apenas · 48 transicion de portada mas cuidada · verif: captura de portada
+- [x] G14 · 49 el cierre entra por partes · 50 la carta final tiene resplandor detras · verif: DOM del final
 
-## Escenas
+## D · Naipes (51-62)
 
-- [x] Escribir las 4 escenas nuevas con entrada y dichos por carta · verif:
-      `auditar()` sin textos undefined
-- [x] Reordenar el arco narrativo de las 8 escenas para que el descubrimiento
-      del don progrese · verif: lectura completa del guion de corrido
-- [x] Ampliar los cierres para cubrir los caminos nuevos · verif: forzar cada
-      rama de cierre y ver que devuelve texto propio
+- [x] G15 · 51 textura de papel en la lamina · 52 el filete con desgaste leve · 53 las tintas con registro imperfecto · verif: hoja de contacto
+- [x] G16 · 54 mejorar El Loco (perro) · 55 mejorar El Mundo (guirnalda) · 56 mejorar La Torre (proporcion) · verif: hoja de contacto
+- [x] G17 · 57 mejorar La Rueda (criaturas) · 58 mejorar Los Enamorados (tercera figura) · 59 mejorar La Templanza (jarras) · verif: hoja de contacto
+- [x] G18 · 60 numeral con mejor cuerpo · 61 cartela con relieve · 62 la lectura no se corta nunca · verif: las 15 cartas con nombres largos
+- [x] G19 · 63 dorso mas rico · 64 la carta final gira con brillo al voltear · verif: captura del dorso
 
-## Bel adentro del sueño
+## E · Escena y figuras (65-76)
 
-- [x] Bel camina hacia la figura al entrar y se detiene a distancia de mirada ·
-      verif: captura al inicio y al final del acercamiento
-- [x] La cabeza de Bel sigue a la figura (mira lo que está pasando) · verif:
-      captura con figura a izquierda y a derecha
-- [x] La transformación la afecta: viento, luz que la baña, retroceso · verif:
-      captura en el pico de la mutación
-- [x] Bel reacciona distinto según el tono de la carta · verif: captura con
-      carta de luz y con carta de sombra
+- [x] G20 · 65 montania: durmientes y vagon quieto · 66 casa: puerta con picaporte y sendero · 67 arbol: hojas que se mueven · verif: capturas
+- [x] G21 · 68 laguna: juncos en la orilla · 69 faro: rocas en la base · 70 calesita: piso con reflejo · verif: capturas
+- [x] G22 · 71 luna: mas relieve · 72 platillo: ventanas en la cupula · 73 bandada: mejor forma de ala · verif: capturas
+- [x] G23 · 74 cama: mesa de luz con la lampara · 75 puerta: marco con relieve · 76 reloj: pendulo · verif: capturas
 
-## Sonido
+## F · Sonido (77-86)
 
-- [x] Módulo `audio.js` con contexto, reverb y maestro silenciable · verif:
-      nodos activos y `state === 'running'` tras el gesto
-- [x] Colchón ambiente que evoluciona · verif: audible 10 s sin cortes
-- [x] Sonido de transformación ligado al vuelo de las piezas · verif: se
-      dispara al jugar y dura lo que la mutación
-- [x] Sonido propio por tipo de carta · verif: cada carta produce nodos
-      distintos
-- [x] Interacción de cartas: hover y juego · verif: audible al pasar y clickear
-- [x] Botón de silencio en pantalla, y arranca apagado · verif: click apaga y
-      prende
+- [x] G24 · 77 cada lugar tiene su color sonoro · 78 el colchon cambia al llegar · 79 volumen general mas parejo · verif: contar nodos por lugar
+- [x] G25 · 80 el instante suena mientras el anillo se cierra · 81 tic al acercarse a la marca · 82 acierto y error mas distintos · verif: nodos por caso
+- [x] G26 · 83 la carta final tiene su acorde · 84 el volteo suena · 85 fundido del colchon al terminar · 86 recordar si el sonido estaba apagado · verif: estado de audio
+- [x] G27 · 87 control de volumen ademas del mute · verif: cambiar volumen y medir
 
-## Presentación
+## G · Textos (88-94)
 
-- [x] Táctil: las cartas responden a touch sin retardo de 300 ms · verif:
-      evento touch dispara la jugada
-- [x] Responsive a 390×840: nada cortado, sin scroll horizontal · verif:
-      resize_window y captura
-- [x] Portada y cierre con el mismo cuidado tipográfico que el resto · verif:
-      captura de las dos
+- [x] G28 · 88 revisar los 14 textos de llegada · 89 revisar los 14 de vuelta · 90 revisar los 14 indicios · verif: lectura completa y largo maximo
+- [x] G29 · 91 las frases de accion mas variadas · 92 los 4 finales mas afilados · 93 la carta de Bel revisada · verif: lectura
+- [x] G30 · 94 ningun texto se corta en celular · verif: medicion de alturas a 390x760
+
+## H · Accesibilidad (95-100)
+
+- [x] G31 · 95 foco visible en todo lo clickeable · 96 roles y aria-label · 97 las cartas se juegan con Enter · verif: navegacion por teclado
+- [x] G32 · 98 respeta prefers-reduced-motion · 99 contraste del texto sobre la escena · 100 el juego se puede terminar solo con teclado · verif: partida completa sin mouse
 
 ## Cierre
 
-- [x] Build final y verificación de los 8 criterios de aceptación · verif:
-      correr la lista completa de SPEC.md
-- [x] `INFORME.md` con desvíos y resultados · verif: existe y cubre todo
+- [x] Verificacion final contra los 6 criterios y build
+- [x] INFORME.md de la tanda 3

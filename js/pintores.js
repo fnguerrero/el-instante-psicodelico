@@ -30,11 +30,15 @@ var Pintores = (function () {
   /* ============ el platillo ============ */
   function platillo(cx, E, t, alPiso) {
     var flota = Math.sin(t * .8) * E * .04;
+    /* Y se inclina, muy poco, como algo que se sostiene solo y corrige. Sin
+       esto es un disco pegado al aire. */
+    var ladeo = Math.sin(t * .43) * .035 + Math.sin(t * .77) * .015;
     // Si sabemos a que altura esta el suelo, el haz llega hasta ahi y deja un
     // charco de luz. Cortado en el aire se ve como un recorte pegado.
     var hastaPiso = (alPiso && alPiso > E * .4) ? alPiso - flota : E * 1.45;
     cx.save();
     cx.translate(0, flota);
+    cx.rotate(ladeo);
 
     // El cono de luz va primero: todo lo demás se apoya encima.
     var largo = hastaPiso, boca = E * .55 + hastaPiso * .32;
@@ -88,6 +92,18 @@ var Pintores = (function () {
     cx.beginPath();
     cx.ellipse(0, -E * .05, E * .46, E * .52, 0, Math.PI, 0);
     cx.closePath(); cx.fill();
+    // Tres ventanas en la cupula. Sin ellas es una burbuja lisa.
+    for (var vn = 0; vn < 3; vn++) {
+      var av = -Math.PI * .78 + vn * Math.PI * .28;
+      var wx = Math.cos(av) * E * .30, wy = Math.sin(av) * E * .30 - E * .12;
+      cx.fillStyle = 'rgba(190,225,255,.55)';
+      cx.beginPath();
+      cx.ellipse(wx, wy, E * .055, E * .075, 0, 0, 6.2832);
+      cx.fill();
+      cx.strokeStyle = 'rgba(40,60,100,.5)';
+      cx.lineWidth = E * .010;
+      cx.stroke();
+    }
     // Brillo del vidrio.
     cx.fillStyle = 'rgba(255,255,255,.30)';
     cx.beginPath();
@@ -174,6 +190,45 @@ var Pintores = (function () {
       cx.moveTo(a[0] * E, a[1] * E); cx.lineTo(b[0] * E, b[1] * E);
       cx.stroke();
     }
+    // Durmientes: travesanos cortos perpendiculares a la via.
+    for (var d = 0; d < pts.length - 1; d += 1) {
+      var a2 = pts[d], b2 = pts[d + 1];
+      var ang = Math.atan2(b2[1] - a2[1], b2[0] - a2[0]);
+      var nx = -Math.sin(ang), ny = Math.cos(ang);
+      cx.strokeStyle = 'rgba(70,58,84,.75)';
+      cx.lineWidth = E * .009;
+      cx.beginPath();
+      cx.moveTo(a2[0] * E - nx * E * .022, a2[1] * E - ny * E * .022);
+      cx.lineTo(a2[0] * E + nx * E * .022, a2[1] * E + ny * E * .022);
+      cx.stroke();
+    }
+
+    /* El vagon recorre la via. Estaba parado en la estacion y una montana rusa
+       quieta no es una montana rusa: es un andamio. */
+    var avance = (t * .085) % 1;
+    var iVia = Math.min(pts.length - 2, Math.floor(avance * (pts.length - 1)));
+    var fVia = avance * (pts.length - 1) - iVia;
+    var pa = pts[iVia], pb = pts[iVia + 1];
+    var vx = (pa[0] + (pb[0] - pa[0]) * fVia) * E;
+    var vy = (pa[1] + (pb[1] - pa[1]) * fVia) * E + E * .035;
+    var angVia = Math.atan2((pb[1] - pa[1]) * E, (pb[0] - pa[0]) * E);
+    cx.save();
+    cx.translate(vx, vy);
+    cx.rotate(angVia);
+    cx.fillStyle = '#3a2a55';
+    cx.beginPath();
+    cx.moveTo(-E * .075, 0);
+    cx.lineTo(E * .105, 0);
+    cx.quadraticCurveTo(E * .135, E * .022, E * .112, E * .052);
+    cx.lineTo(-E * .06, E * .052);
+    cx.closePath(); cx.fill();
+    cx.fillStyle = '#c23a48';
+    cx.fillRect(-E * .075, E * .012, E * .18, E * .015);
+    cx.fillStyle = '#12101c';
+    cx.beginPath(); cx.arc(-E * .038, E * .056, E * .013, 0, 6.2832); cx.fill();
+    cx.beginPath(); cx.arc(E * .068, E * .056, E * .013, 0, 6.2832); cx.fill();
+    cx.restore();
+
     // Guirnalda de bombitas sobre la vía.
     for (var m = 0; m < pts.length; m += 2) {
       var pm = pts[m];
@@ -335,6 +390,33 @@ var Pintores = (function () {
     [-an * .92, -an * .62, an * .66, an * .93].forEach(function (px) {
       cx.beginPath(); cx.moveTo(px, al * .29); cx.lineTo(px, al * .62); cx.stroke();
     });
+    // Mesa de luz con el velador: es lo que dice que esto es un cuarto.
+    // Del lado derecho: a la izquierda de la cama es donde se para Bel.
+    var mx = an * 1.24, my = al * .10;
+    cx.fillStyle = '#6d5240';
+    cx.fillRect(mx - E * .085, my, E * .17, E * .022);
+    cx.strokeStyle = '#5c4536';
+    cx.lineWidth = E * .018;
+    cx.lineCap = 'round';
+    cx.beginPath();
+    cx.moveTo(mx - E * .065, my + E * .022); cx.lineTo(mx - E * .065, al * .62);
+    cx.moveTo(mx + E * .065, my + E * .022); cx.lineTo(mx + E * .065, al * .62);
+    cx.stroke();
+    // El velador prendido.
+    halo(cx, mx, my - E * .085, E * .28, '255,206,140', .55);
+    cx.fillStyle = '#c8a86e';
+    cx.beginPath();
+    cx.moveTo(mx - E * .055, my - E * .04);
+    cx.lineTo(mx + E * .055, my - E * .04);
+    cx.lineTo(mx + E * .035, my - E * .12);
+    cx.lineTo(mx - E * .035, my - E * .12);
+    cx.closePath(); cx.fill();
+    cx.strokeStyle = '#8a7048';
+    cx.lineWidth = E * .010;
+    cx.beginPath();
+    cx.moveTo(mx, my - E * .04); cx.lineTo(mx, my);
+    cx.stroke();
+
     halo(cx, 0, al * .2, E * 1.1, '210,200,255', .07);
   }
 
@@ -441,8 +523,22 @@ var Pintores = (function () {
     // Puerta.
     cx.fillStyle = '#241c2e';
     cx.fillRect(-E * .13, E * .34, E * .26, E * .62);
-    cx.fillStyle = 'rgba(255,206,130,.75)';
-    cx.beginPath(); cx.arc(E * .07, E * .60, E * .016, 0, 6.2832); cx.fill();
+    // Marco y picaporte con un poco de relieve.
+    cx.strokeStyle = 'rgba(150,132,110,.32)';
+    cx.lineWidth = E * .012;
+    cx.strokeRect(-E * .13, E * .34, E * .26, E * .62);
+    cx.fillStyle = 'rgba(255,206,130,.85)';
+    cx.beginPath(); cx.arc(E * .07, E * .62, E * .018, 0, 6.2832); cx.fill();
+
+    // Sendero: piedras que se van agrandando hacia el frente.
+    for (var sd = 0; sd < 5; sd++) {
+      var f2 = sd / 4;
+      cx.fillStyle = 'rgba(120,110,140,' + (.12 + f2 * .10).toFixed(3) + ')';
+      cx.beginPath();
+      cx.ellipse(-E * .02 - f2 * E * .10, E * (.99 + f2 * .10),
+                 E * (.055 + f2 * .05), E * (.016 + f2 * .012), 0, 0, 6.2832);
+      cx.fill();
+    }
   }
 
   /* ============ la bandada ============ */
@@ -641,6 +737,21 @@ var Pintores = (function () {
     cx.beginPath();
     cx.ellipse(0, -E * .72, E * .20, E * .13, 0, Math.PI, 0);
     cx.closePath(); cx.fill();
+
+    // Rocas al pie: un faro plantado en el pasto se ve pegado.
+    var rndR = sembrado(31);
+    for (var rk = 0; rk < 9; rk++) {
+      var rx = (rndR() * 2 - 1) * E * .62;
+      var ry = E * (.94 + rndR() * .07);
+      var rw = E * (.07 + rndR() * .11);
+      cx.fillStyle = 'rgba(46,42,58,' + (.55 + rndR() * .35).toFixed(2) + ')';
+      cx.beginPath();
+      cx.ellipse(rx, ry, rw, rw * (.5 + rndR() * .25), rndR() * .6, 0, 6.2832);
+      cx.fill();
+      cx.strokeStyle = 'rgba(150,140,180,.13)';
+      cx.lineWidth = E * .006;
+      cx.stroke();
+    }
   }
 
   /* ============ la laguna ============ */
@@ -678,6 +789,25 @@ var Pintores = (function () {
       cx.fill();
     }
     cx.restore();
+
+    // Juncos en la orilla: rompen la linea recta del agua.
+    var rndJ = sembrado(23);
+    for (var jn = 0; jn < 22; jn++) {
+      var jx = (rndJ() * 2 - 1) * E * 1.5;
+      // Solo a los costados: en el medio taparian el reflejo.
+      if (Math.abs(jx) < E * .42) continue;
+      var jy = E * (.34 + rndJ() * .52);
+      var jalto = E * (.10 + rndJ() * .16);
+      var jinc = (rndJ() - .5) * .5 + Math.sin(t * .6 + jn) * .07;
+      cx.strokeStyle = 'rgba(58,74,64,' + (.35 + rndJ() * .35).toFixed(2) + ')';
+      cx.lineWidth = E * .010;
+      cx.lineCap = 'round';
+      cx.beginPath();
+      cx.moveTo(jx, jy);
+      cx.quadraticCurveTo(jx + jinc * E * .06, jy - jalto * .6,
+                          jx + jinc * E * .14, jy - jalto);
+      cx.stroke();
+    }
 
     // Lineas de oleaje.
     for (var i = 0; i < 15; i++) {
@@ -831,6 +961,24 @@ var Pintores = (function () {
     cx.stroke();
     cx.fillStyle = '#2b2219';
     cx.beginPath(); cx.arc(0, 0, E * .030, 0, 6.2832); cx.fill();
+
+    // El pendulo, colgando del pie, con su vaiven propio.
+    var osc = Math.sin(t * 1.15) * .34;
+    cx.save();
+    cx.translate(0, E * .80);
+    cx.rotate(osc);
+    cx.strokeStyle = '#6f5e46';
+    cx.lineWidth = E * .012;
+    cx.beginPath(); cx.moveTo(0, 0); cx.lineTo(0, E * .30); cx.stroke();
+    var gp = cx.createRadialGradient(-E * .02, E * .30, E * .01, 0, E * .32, E * .075);
+    gp.addColorStop(0, '#e8c473');
+    gp.addColorStop(1, '#9a7a34');
+    cx.fillStyle = gp;
+    cx.beginPath(); cx.arc(0, E * .32, E * .068, 0, 6.2832); cx.fill();
+    cx.strokeStyle = 'rgba(60,48,34,.7)';
+    cx.lineWidth = E * .010;
+    cx.stroke();
+    cx.restore();
   }
 
   var PINTORES = {

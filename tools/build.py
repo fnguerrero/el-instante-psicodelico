@@ -25,17 +25,27 @@ def construir(entrada, salida):
     for clave in ['function jugar(', 'Figuras.preparar', 'Pintores.pintar',
                   'requestAnimationFrame(cuadro)', 'var Figuras', 'var Pintores',
                   'var Audio2', 'var Guion', 'Audio2.transformar', 'Audio2.prender',
-                  'touchstart', 'LEJANIA', 'var BASES']:
+                  'touchstart', 'LEJANIA', 'var BASES', 'var Instante',
+                  'dibujar: dibujar', 'Instante.dibujar', 'forzarMirada',
+                  'var Naipes', 'Naipes.dibujar', 'NO_AL_ARRANQUE',
+                  'cartaDeElla', 'astrologa:', 'function dorso', 'mostrarCartaFinal',
+                  'CARTA_PARA_BEL', 'abrirCarta', 'tensar', 'tensionSuave']:
         if clave not in html:
             raise SystemExit('falta en el bundle: ' + clave)
 
-    escenas = html.count("      clave: '")
-    if escenas < 8:
-        raise SystemExit('el bundle trae %d escenas, faltan' % escenas)
-    cartas = html.count("      lectura: '")
+    lugares = html.count('      llegada:')
+    if lugares < 14:
+        raise SystemExit('el bundle trae %d lugares, faltan' % lugares)
+    cartas = html.count('      lectura:')
     if cartas < 14:
         raise SystemExit('el bundle trae %d cartas, faltan' % cartas)
-    print('   %d escenas, %d cartas' % (escenas, cartas))
+    # Una referencia a elCarta fuera de jugar() rompe el cierre entero y no se
+    # nota hasta la ultima pantalla: se chequea que haya exactamente una.
+    if html.count('if (elCarta)') != 1:
+        raise SystemExit('elCarta aparece %d veces; debe ser 1' % html.count('if (elCarta)'))
+    if "figura: 'cama'" in html:
+        raise SystemExit('hay una carta que lleva a la cama: la cama es del final')
+    print('   %d lugares, %d cartas' % (lugares, cartas))
 
     dest = os.path.join(BASE, salida)
     os.makedirs(os.path.dirname(dest), exist_ok=True)

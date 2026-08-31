@@ -1,82 +1,51 @@
-# Duermevela — completar el juego
+# El instante — tanda 3: las 100 mejoras
+
+> Tandas 1 y 2 archivadas en `.nonstop/tanda1/` y `.nonstop/tanda2/`.
+> La bitácora es continua desde #0.
 
 ## Objetivo
 
-Duermevela es un regalo para Bel, astróloga. Es un sueño en el que las cosas
-muestran lo que son cuando ella las mira con la carta justa: jugás un arcano y
-la escena se transforma delante tuyo, las piezas de lo que había vuelan y se
-rearman en otra cosa. El motor de transformación y cuatro escenas ya están y
-funcionan. Falta terminarlo: sonido, llegar a ocho escenas, y meter a Bel
-adentro del sueño en vez de dejarla mirando de costado.
+Nico pidió cien mejoras: pulido general de todo. El juego ya funciona de punta a
+punta (8 pasos, recorrido ramificado, indicios, naipes de Marsella, carta final
+para Bel). Esta tanda no agrega mecánicas: levanta el piso de calidad en todo lo
+que se toca — claridad, bugs, presentación, sonido, textos, accesibilidad,
+rendimiento.
 
 ## Alcance
 
-**Entra:**
-- Sonido y música sintetizados con Web Audio (sin archivos externos).
-- Ocho escenas encadenadas, con figuras nuevas para sostenerlas.
-- Mazo ampliado, para que elegir siga pesando en la escena ocho.
-- Bel adentro de la escena: se acerca, reacciona a lo que pasa, la
-  transformación la afecta.
-- Soporte táctil y responsive: Bel lo va a abrir en el celular.
-- Un solo archivo HTML autocontenido como entregable.
+**Entra:** las 100 mejoras numeradas del TODO, agrupadas por tema.
 
-**No entra:**
-- Imágenes, fuentes locales o audio en archivos: todo se dibuja o se sintetiza.
-- Backend, guardado en servidor, cuentas.
-- Carta natal real ni cálculo astronómico (eso fue otro proyecto).
-- Publicar o deployar nada.
-
-## Stack y decisiones
-
-- HTML + JS + Canvas 2D, sin dependencias, igual que lo ya construido.
-- Web Audio API con osciladores y ruido filtrado. Nada de samples.
-- Módulos sueltos en `js/`, empaquetados por `tools/build.py` a un HTML único.
-- Servidor de desarrollo propio (`tools/servidor.py`, puerto 8139) que recibe
-  capturas del canvas por POST, porque el panel del navegador no compone
-  cuadros de forma confiable en esta sesión.
+**No entra:** mecánicas nuevas, más lugares o cartas, cambiar el género del
+juego, publicar o commitear.
 
 ## Supuestos
 
-Decisiones tomadas por criterio propio, sin consultar:
-
-1. **Ocho escenas, no más.** Con la transformación de ~2,5 s más la lectura,
-   ocho escenas dan entre 12 y 15 minutos, que es la duración que Nico pidió
-   cuando planteó el juego por primera vez.
-2. **Mazo de 14 cartas.** Con 8 escenas se gastan 8; que sobren 6 es lo que
-   mantiene la elección viva hasta la última escena y da rejugabilidad.
-3. **La Estrella sigue siendo la carta del don** y no se duplica esa función en
-   ninguna carta nueva: es el eje temático del juego.
-4. **El sonido arranca apagado con un botón visible para prenderlo.** Los
-   navegadores bloquean el audio hasta que hay un gesto, y un juego que se
-   abre sonando sin aviso es hostil.
-5. **La madre aparece solo como presencia amable** — luz prendida, alguien que
-   espera sin apuro. Nunca nombrada, nunca asociada a pérdida. Pedido explícito
-   de Nico en la conversación: "la madre es intocable y es un ángel para Bel".
-6. **Bel adentro del sueño** se resuelve con tres cosas: camina hacia la figura
-   al entrar a la escena, la mira (la cabeza sigue el objeto), y la
-   transformación la empuja o la ilumina. No se hace un personaje controlable:
-   el juego es de cartas, no de plataformas.
-7. **Sin modo horror.** Decidido con Nico: misterio y maravilla.
+1. **Se agrupan varias mejoras por iteración.** 100 mejoras no entran en 40
+   iteraciones de a una; van de a 2 o 3 por tema afín, verificadas juntas.
+2. **Ninguna mejora puede romper lo que anda.** Después de cada grupo se corre
+   la batería (auditar, verificarDibujo, verificarBases, una partida completa).
+3. **Prioridad cuando algo no entra:** claridad y bugs primero, presentación y
+   textos después, rendimiento último. Es el orden en que el jugador los nota.
+4. **Accesibilidad sin dependencias**: foco visible, roles ARIA, contraste y
+   `prefers-reduced-motion`. Nada de librerías.
+5. **El juego se llama `El segundo de más`** desde el 30/08/2026, y la carpeta
+   es `ElSegundoDeMas`. El título sale del final del juego — «te quedaste el
+   segundo de más que la mayoría no se queda» — así que nombra la mecánica y a
+   la vez lo que el juego le dice a Bel de ella. Ojo con una confusión fácil:
+   adentro del código, `Instante` sigue siendo el módulo de la mecánica del
+   momento justo, y eso NO se renombra. Los nombres anteriores (Duermevela,
+   El instante) quedan en los informes viejos: son el registro de cuando el
+   proyecto se llamaba así.
 
 ## Criterios de aceptación
 
-Verificables, no opinables:
-
-1. Una partida completa recorre las 8 escenas y llega al cierre sin errores en
-   consola.
-2. Las 8 escenas tienen figura de entrada y figura revelada, y las dos existen
-   en el catálogo de figuras y tienen pintor propio.
-3. Toda carta del mazo produce una transformación en cualquier escena: ninguna
-   combinación carta/escena deja la pantalla sin figura.
-4. Toda combinación carta/escena tiene texto propio o cae en el texto `otra`
-   declarado; ninguna muestra `undefined`.
-5. El audio produce sonido audible (nodos activos verificables) al jugar una
-   carta, y se puede silenciar.
-6. Cada figura terrestre apoya en el suelo y cada figura aérea no lo toca,
-   verificado por captura.
-7. El juego responde a touch y se ve completo a 390×840 (celular) sin scroll
-   horizontal ni elementos cortados.
-8. `dist/duermevela.html` se abre solo, sin servidor, y juega completo.
+1. Al menos 85 de las 100 mejoras cerradas y marcadas.
+2. Partida completa sin errores en consola, con la batería en verde.
+3. Ningún desborde ni colisión de layout en 390x760, 1395x920 y 1532x783.
+4. Toda mejora marcada `[x]` tiene su verificación registrada en la bitácora.
+5. `dist/el-instante.html` se abre solo y juega completo.
+6. Cero regresiones: los criterios de la tanda 2 siguen pasando (cama solo al
+   final, La Muerte fuera de la primera mano, recorridos variados, 4 finales).
 
 ## Presupuesto
 

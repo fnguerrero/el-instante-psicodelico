@@ -51,7 +51,7 @@ var Audio2 = (function () {
     if (ac) {
       if (ac.state === 'suspended') ac.resume();
       encendido = true;
-      if (maestro) maestro.gain.setTargetAtTime(.9, ac.currentTime, .4);
+      if (maestro) maestro.gain.setTargetAtTime(volumen, ac.currentTime, .4);
       return true;
     }
     var Ctor = window.AudioContext || window.webkitAudioContext;
@@ -74,15 +74,36 @@ var Audio2 = (function () {
     seco.connect(maestro);
 
     encendido = true;
-    maestro.gain.setTargetAtTime(.9, ac.currentTime, .8);
+    maestro.gain.setTargetAtTime(volumen, ac.currentTime, .8);
     arrancarColchon();
     return true;
   }
+
+  /* Volumen general, de 0 a 1. El mute es un caso de esto, no algo aparte. */
+  var volumen = .9;
+  function ponerVolumen(v) {
+    volumen = Math.max(0, Math.min(1, v));
+    if (ac && encendido) maestro.gain.setTargetAtTime(volumen, ac.currentTime, .12);
+    return volumen;
+  }
+  function volumenActual() { return volumen; }
 
   function apagar() {
     if (!ac) return;
     encendido = false;
     maestro.gain.setTargetAtTime(0, ac.currentTime, .3);
+  }
+
+  /* Baja el colchon despacio y corta su reloj. Se usa al terminar la partida:
+     el ambiente no tiene que seguir sonando debajo del final. */
+  function dormirColchon(segundos) {
+    if (!colchon || !ac) return;
+    var t0 = ac.currentTime;
+    colchon.voces.forEach(function (v) {
+      v.g.gain.cancelScheduledValues(t0);
+      v.g.gain.setTargetAtTime(0, t0, (segundos || 3) / 3);
+    });
+    if (colchon.reloj) { clearInterval(colchon.reloj); colchon.reloj = null; }
   }
 
   function alternar() {
@@ -92,6 +113,16 @@ var Audio2 = (function () {
   }
 
   function activo() { return !!(ac && encendido && ac.state === 'running'); }
+
+  /* Los navegadores suspenden el contexto cuando la pestana pasa a segundo
+     plano y no siempre lo retoman solos: al volver, el juego quedaba mudo. */
+  if (typeof document !== 'undefined') {
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden && ac && encendido && ac.state === 'suspended') {
+        ac.resume();
+      }
+    });
+  }
 
   /* Conecta una fuente a la mezcla, con su porción de reverb. */
   function enchufar(nodo, envio) {
@@ -138,7 +169,7 @@ var Audio2 = (function () {
       o.connect(g); g.connect(filtro);
       enchufar(filtro, .6);
       o.start();
-      colchon.voces.push({ o: o, g: g, lfo: lfo });
+      colchon.voces.push({ o: o, g: g, lfo: lfo, filtro: filtro });
     });
 
     // Aire: ruido rosa muy filtrado, apenas audible.
@@ -160,11 +191,104 @@ var Audio2 = (function () {
     }, 4200);
   }
 
+  /* Cada lugar tiene su color: mueve la afinacion del colchon y la apertura
+     del filtro. Es sutil a proposito — se nota al cambiar de lugar, no
+     escuchando uno solo. */
+  var COLORES = {
+    montania: { grados: [0, 3, 7], filtro: 380, brillo: -4 },
+    platillo: { grados: [0, 5, 10], filtro: 620, brillo: 8 },
+    calesita: { grados: [0, 4, 7], filtro: 520, brillo: 3 },
+    laguna:   { grados: [0, 3, 10], filtro: 300, brillo: -8 },
+    faro:     { grados: [0, 4, 9], filtro: 560, brillo: 5 },
+    casa:     { grados: [0, 4, 7], filtro: 460, brillo: 2 },
+    arbol:    { grados: [0, 5, 9], filtro: 430, brillo: 0 },
+    reloj:    { grados: [0, 3, 6], filtro: 350, brillo: -6 },
+    luna:     { grados: [0, 5, 12], filtro: 660, brillo: 6 },
+    puerta:   { grados: [0, 4, 10], filtro: 500, brillo: 1 },
+    ruina:    { grados: [0, 1, 6], filtro: 260, brillo: -10 },
+    bandada:  { grados: [0, 7, 12], filtro: 700, brillo: 7 },
+    barca:    { grados: [0, 5, 7], filtro: 420, brillo: -2 },
+    cama:     { grados: [0, 4, 7], filtro: 340, brillo: -3 }
+  };
+
+  /* Reafina el colchon al llegar a un lugar. Sin esto los ocho pasos suenan
+     exactamente igual y el sonido deja de contar nada. */
+  function colorDe(clave) {
+    if (!activo() || !colchon) return;
+    var c = COLORES[clave] || COLORES.casa;
+    var t0 = ac.currentTime;
+    colchon.voces.forEach(function (v, i) {
+      var g = c.grados[i % c.grados.length];
+      var oct = i === 2 ? 0 : -1;
+      v.o.frequency.setTargetAtTime(nota(g, oct), t0, 1.6);
+      v.o.detune.setTargetAtTime((i - 1) * 6 + c.brillo, t0, 1.6);
+      if (v.filtro) v.filtro.frequency.setTargetAtTime(c.filtro, t0, 1.6);
+    });
+  }
+
+  /* Cuanto pesa el colchon. Arranca en dos voces apenas audibles y termina en
+     un acorde completo: la partida se escucha ir hacia algun lado, en vez de
+     sonar igual del primer paso al ultimo. */
+  var tensionAudio = 0;
+
+  function tensar(nivel) {
+    tensionAudio = Math.max(0, Math.min(1, nivel));
+    if (!activo() || !colchon) return;
+    var t0 = ac.currentTime;
+    colchon.voces.forEach(function (v, i) {
+      // La voz aguda es la que mas crece: es la que se nota.
+      var base = .055 - i * .012;
+      var suma = tensionAudio * (i === 2 ? .055 : .022);
+      v.g.gain.cancelScheduledValues(t0);
+      v.g.gain.setTargetAtTime(base + suma, t0, 2.2);
+      if (v.filtro) {
+        v.filtro.frequency.setTargetAtTime(
+          v.filtro.frequency.value * (1 + tensionAudio * .55), t0, 2.2);
+      }
+    });
+    // Y una cuarta voz que solo aparece pasada la mitad.
+    if (tensionAudio > .5 && !colchon.cuarta) agregarCuarta();
+  }
+
+  /* La voz de mas: entra sola cuando la partida ya avanzo, dos octavas arriba,
+     como un armonico que estaba y recien ahora se escucha. */
+  function agregarCuarta() {
+    if (!ac || !colchon || colchon.cuarta) return;
+    var o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.value = nota(7, 1);
+    o.detune.value = 4;
+    var g = ac.createGain();
+    g.gain.value = 0;
+    g.gain.setTargetAtTime(.026, ac.currentTime, 4);
+    var lfo = ac.createOscillator();
+    lfo.type = 'sine';
+    lfo.frequency.value = .038;
+    var prof = ac.createGain();
+    prof.gain.value = .014;
+    lfo.connect(prof); prof.connect(g.gain);
+    lfo.start();
+    var fl = ac.createBiquadFilter();
+    fl.type = 'lowpass'; fl.frequency.value = 900; fl.Q.value = .7;
+    o.connect(g); g.connect(fl);
+    enchufar(fl, .75);
+    o.start();
+    colchon.cuarta = { o: o, g: g, lfo: lfo, filtro: fl };
+    colchon.voces.push(colchon.cuarta);
+  }
+
   /* ---------- sonidos sueltos ---------- */
 
   /* Una nota corta, tipo campana. El ladrillo de casi todo lo demás. */
+  /* Cuantas notas pueden estar sonando a la vez. Sin tope, jugar rapido apila
+     decenas de osciladores y la mezcla se satura hasta distorsionar. */
+  var TOPE_VOCES = 14;
+  var vivas = 0;
+
   function gota(grado, octava, volumen, duracion) {
     if (!activo()) return;
+    if (vivas >= TOPE_VOCES) return;
+    vivas++;
     var t0 = ac.currentTime;
     var dur = duracion || 2.6;
     var o = ac.createOscillator();
@@ -187,6 +311,11 @@ var Audio2 = (function () {
     enchufar(g, .7); enchufar(g2, .7);
     o.start(t0); o2.start(t0);
     o.stop(t0 + dur + .1); o2.stop(t0 + dur + .1);
+    o.onended = function () {
+      vivas = Math.max(0, vivas - 1);
+      // Soltar los nodos: sin esto el grafo crece toda la partida.
+      try { g.disconnect(); g2.disconnect(); } catch (e) {}
+    };
   }
 
   /* El roce de una carta al pasarle por encima. */
@@ -226,6 +355,23 @@ var Audio2 = (function () {
     enchufar(g, .35);
     f.start(t0); f.stop(t0 + .4);
     gota(grado === undefined ? 0 : grado, 1, .09, 3.2);
+  }
+
+  /* Un tic corto. Se usa para marcar el paso del anillo: cuanto mas cerca de
+     la marca, mas agudo. Es la unica pista sonora del instante. */
+  function tic(cercania) {
+    if (!activo()) return;
+    var t0 = ac.currentTime;
+    var o = ac.createOscillator();
+    o.type = 'triangle';
+    o.frequency.value = 700 + cercania * 900;
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(.025 + cercania * .05, t0 + .004);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .09);
+    o.connect(g);
+    enchufar(g, .2);
+    o.start(t0); o.stop(t0 + .12);
   }
 
   /* ---------- la transformación ---------- */
@@ -278,11 +424,57 @@ var Audio2 = (function () {
     }, dur * .78 * 1000);
   }
 
+  /* El acierto: un acorde que sube. El error: una nota sola que cae. Antes los
+     dos eran gotas y se confundian. */
+  function acierto() {
+    if (!activo()) return;
+    [0, 4, 7, 11].forEach(function (gr, i) {
+      setTimeout(function () { gota(gr, i > 1 ? 2 : 1, .085 - i * .012, 2.6); }, i * 70);
+    });
+  }
+  function fallo() {
+    if (!activo()) return;
+    var t0 = ac.currentTime;
+    var o = ac.createOscillator();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(nota(3, 0), t0);
+    o.frequency.exponentialRampToValueAtTime(nota(0, -1), t0 + .55);
+    var g = ac.createGain();
+    g.gain.setValueAtTime(.09, t0);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .7);
+    o.connect(g);
+    enchufar(g, .5);
+    o.start(t0); o.stop(t0 + .8);
+  }
+
   /* Al entrar a una escena: dos notas que abren. */
   function entrada() {
     if (!activo()) return;
     gota(0, 0, .09, 3.4);
     setTimeout(function () { gota(4, 1, .06, 2.8); }, 420);
+  }
+
+  /* El volteo de la carta final: un roce de papel y su acorde. */
+  function volteo() {
+    if (!activo()) return;
+    var t0 = ac.currentTime;
+    var f = ac.createBufferSource();
+    f.buffer = ruido(.6);
+    var fl = ac.createBiquadFilter();
+    fl.type = 'bandpass';
+    fl.frequency.setValueAtTime(900, t0);
+    fl.frequency.exponentialRampToValueAtTime(2600, t0 + .45);
+    fl.Q.value = .9;
+    var g = ac.createGain();
+    g.gain.setValueAtTime(0, t0);
+    g.gain.linearRampToValueAtTime(.06, t0 + .12);
+    g.gain.exponentialRampToValueAtTime(.0001, t0 + .6);
+    f.connect(fl); fl.connect(g);
+    enchufar(g, .5);
+    f.start(t0); f.stop(t0 + .8);
+    [0, 7, 12, 16].forEach(function (gr, i) {
+      setTimeout(function () { gota(gr, i > 1 ? 2 : 1, .10 - i * .015, 6); }, 380 + i * 420);
+    });
   }
 
   /* El cierre: un acorde largo que se apaga. */
@@ -354,6 +546,40 @@ var Audio2 = (function () {
   }
   window.addEventListener('storage', porSenal);
 
+/* ---- auto-silencio por inactividad ----
+   La última red, y la única que no depende de nada externo: ni de que la pestaña
+   se oculte, ni del origen, ni de que llegue una señal. Tres minutos sin tocar
+   una tecla y el juego se calla; vuelve solo al primer toque. Es lo que evita
+   que una pestaña olvidada quede sonando toda la tarde. */
+(function () {
+  var ESPERA = 3 * 60 * 1000;
+  var reloj = null;
+  var dormido = false;
+
+  function callar() {
+    dormido = true;
+    if (typeof Audio2 !== 'undefined') Audio2.cerrar();
+  }
+
+  function reanudar() {
+    if (!dormido) return;
+    dormido = false;
+    if (typeof Audio2 !== 'undefined') Audio2.despertar();
+  }
+
+  function reiniciar() {
+    reanudar();
+    if (reloj) clearTimeout(reloj);
+    reloj = setTimeout(callar, ESPERA);
+  }
+
+  ['keydown', 'pointerdown', 'touchstart', 'wheel'].forEach(function (ev) {
+    window.addEventListener(ev, reiniciar, { passive: true });
+  });
+  reiniciar();
+})();
+
+
   // Si la marca ya estaba puesta al abrir, no se arranca sonando
   try {
     var marca = parseInt(window.localStorage.getItem('juegos.silencio'), 10);
@@ -366,6 +592,10 @@ var Audio2 = (function () {
   return {
     prender: prender, apagar: apagar, alternar: alternar, activo: activo,
     gota: gota, roce: roce, golpe: golpe, transformar: transformar,
+    dormirColchon: dormirColchon, voces: function () { return vivas; },
+    colorDe: colorDe, tic: tic, acierto: acierto, fallo: fallo, volteo: volteo,
+    tensar: tensar, tensionAudio: function () { return tensionAudio; },
+    ponerVolumen: ponerVolumen, volumenActual: volumenActual,
     entrada: entrada, final: final, estado: estado,
     dormir: dormir, despertar: despertar, cerrar: cerrar
   };

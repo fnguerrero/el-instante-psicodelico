@@ -30,7 +30,9 @@ class Handler(SimpleHTTPRequestHandler):
             self.send_error(404)
             return
         nombre = os.path.basename(self.path[len('/_captura/'):]) or 'captura.png'
-        if not nombre.endswith('.png'):
+        # Respeta jpg tambien: un PNG de 1200x750 con degradados pesa
+        # un mega, y para una miniatura de portfolio eso es absurdo.
+        if not nombre.endswith(('.png', '.jpg', '.jpeg')):
             nombre += '.png'
         largo = int(self.headers.get('Content-Length', 0))
         datos = self.rfile.read(largo).decode('utf-8', 'replace').strip()
