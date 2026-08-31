@@ -66,6 +66,14 @@ Verificables, no opinables:
 6. Ningún efecto de pantalla completa cambia más rápido que 3 Hz.
 7. El juego arranca y termina: se llega del primer lugar a la carta final.
 8. Cero errores en consola en una partida completa.
+9. **El juego tiene que VERSE.** Brillo medio de la franja de escena por encima
+   de 40 sobre 255, y al menos 5% de píxeles claros, en los trece lugares con
+   tensión 0 — o sea en el arranque, que es el caso peor.
+
+   Este criterio se agregó DESPUÉS de romperlo. Los ocho anteriores estaban en
+   verde y el juego se veía negro en pantalla: las pruebas comprobaban que cada
+   capa CAMBIARA el cuadro, nunca que el cuadro fuera visible. Una batería de
+   verificaciones puede estar entera en verde sobre algo que no se ve.
 
 ## Presupuesto
 

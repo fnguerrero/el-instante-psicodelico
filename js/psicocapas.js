@@ -286,4 +286,40 @@
     cx.restore();
   });
 
+
+  /* Resplandor.
+
+     Lo que la luz de fondo no puede resolver: las figuras de linea fina (la
+     montaña rusa, la bandada, el arbol pelado) tienen tan poca superficie que
+     por mucho que se ilumine el aire alrededor, ellas siguen siendo hilos
+     oscuros. Medido: con la luz base sola, la montaña rusa quedaba en 31 de
+     brillo contra los 43 del resto.
+
+     El resplandor toma lo que YA es claro y lo derrama. Se hace copiando el
+     cuadro a un lienzo ocho veces mas chico y volviendolo a agrandar: el
+     escalado del navegador hace el desenfoque gratis, sin recorrer un solo
+     pixel a mano. Sumado con 'lighter', las lineas finas se expanden en halo y
+     el negro se queda negro, que es exactamente lo que hace falta. */
+  P.capa('resplandor', { fase: 'post', caro: true }, function (ctx) {
+    var cx = ctx.cx, W = ctx.W, H = ctx.H;
+    var w = Math.max(2, Math.round(W / 8)), h = Math.max(2, Math.round(H / 8));
+    var chico = P.lienzo('bloom', w, h);
+    chico.cx.setTransform(1, 0, 0, 1, 0, 0);
+    chico.cx.globalCompositeOperation = 'source-over';
+    chico.cx.globalAlpha = 1;
+    chico.cx.clearRect(0, 0, w, h);
+    chico.cx.drawImage(ctx.cv, 0, 0, w, h);
+
+    cx.save();
+    cx.setTransform(1, 0, 0, 1, 0, 0);
+    cx.globalCompositeOperation = 'lighter';
+    // Dos pasadas de distinto tamano: la chica da el nucleo del halo y la
+    // grande el derrame lejano. Con una sola se ve como una mancha.
+    cx.globalAlpha = .34 + ctx.n * .10;
+    cx.drawImage(chico.cv, 0, 0, w, h, 0, 0, W, H);
+    cx.globalAlpha = .16 + ctx.n * .08;
+    cx.drawImage(chico.cv, 0, 0, w, h, -W * .04, -H * .04, W * 1.08, H * 1.08);
+    cx.restore();
+  });
+
 })();

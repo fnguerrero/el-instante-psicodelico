@@ -21,6 +21,21 @@
 
   .capa{position:fixed;inset:0;pointer-events:none}
 
+  /* Las pantallas del final estaban ocultas solo con opacity y
+     pointer-events:none. Eso tapa el mouse pero no el teclado: sus botones
+     seguian en el orden de tabulacion y se podian activar con la barra
+     espaciadora — que es justo la tecla del instante. Apretar espacio para
+     mirar abria la carta a Bel en mitad de la partida. */
+  #cierre:not(.ver),
+  #final:not(.ver),
+  #sobre:not(.ver),
+  #cartaEscrita:not(.ver){visibility:hidden}
+  #cierre,#final,#sobre,#cartaEscrita{
+    transition-property:opacity,visibility;
+    transition-delay:0s,0s}
+  #cierre:not(.ver),#final:not(.ver),#sobre:not(.ver),#cartaEscrita:not(.ver){
+    transition-delay:0s,1.1s}
+
   /* ---------- portada ---------- */
   #portada{display:flex;flex-direction:column;align-items:center;
     justify-content:center;gap:20px;padding:6vw;background:radial-gradient(ellipse at 50% 45%,
