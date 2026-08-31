@@ -37,8 +37,13 @@
     transition-delay:0s,1.1s}
 
   /* ---------- portada ---------- */
+  /* El relleno tambien se ata a la altura, y la portada puede desplazarse si
+     aun asi no entra: vale mas que se pueda llegar al boton scrolleando a que
+     quede cortado sin salida. */
   #portada{display:flex;flex-direction:column;align-items:center;
-    justify-content:center;gap:20px;padding:6vw;background:radial-gradient(ellipse at 50% 45%,
+    justify-content:center;gap:clamp(10px,2.2vh,20px);
+    padding:min(6vw,3.5vh) 6vw;overflow-y:auto;
+    background:radial-gradient(ellipse at 50% 45%,
     rgba(24,20,44,.55),rgba(5,6,14,.96));pointer-events:auto;
     transition:opacity 1.4s;z-index:6}
   /* Al irse, la portada sale del renderizado. Con opacity:0 sola sigue estando
@@ -46,7 +51,15 @@
      que pasaba en el final: se leia el titulo y el boton a traves del cierre. */
   #portada.ido{opacity:0;pointer-events:none;visibility:hidden;
     transition:opacity 1.4s,visibility 0s 1.4s}
-  .titulo{font-size:clamp(52px,11vw,104px);font-weight:300;letter-spacing:.10em;
+  /* El cuerpo del titulo mira el ANCHO y el ALTO, no solo el ancho.
+
+     Con clamp(52px,11vw,104px) una ventana ancha y baja —un portatil, o
+     cualquiera que no la tenga maximizada— daba los 104px completos sobre 520
+     de alto: el titulo se comia media pantalla, empujaba las tres reglas hacia
+     abajo y el boton de entrar quedaba fuera de la vista. El min() con vh es lo
+     que lo ata a la altura disponible. */
+  .titulo{font-size:clamp(34px,min(11vw,13vh),104px);font-weight:300;
+    letter-spacing:.10em;line-height:1.05;
     margin:0;color:#f2ecdc;animation:respirar 7s ease-in-out infinite}
   @keyframes respirar{
     0%,100%{text-shadow:0 0 44px rgba(190,170,255,.26)}
@@ -481,6 +494,26 @@
     #mano{height:min(30vh,232px)}
 
     #mano{padding-bottom:18px}
+  }
+
+  /* Ventana baja: la portada deja de estar centrada verticalmente y se apoya
+     arriba. Centrada, el titulo terminaba a media pantalla; apoyada arriba,
+     entra el titulo, las tres reglas y el boton sin que nada se corte. */
+  @media (max-height:700px){
+    #portada{justify-content:flex-start;padding-top:clamp(12px,3vh,28px)}
+    .titulo{letter-spacing:.06em}
+  }
+
+  /* Por debajo de 560 de alto no alcanza con achicar el titulo: hay que
+     apretar tambien la bajada, las tres reglas y los espacios, o el boton
+     termina dos pixeles afuera — que es lo mismo que estar afuera. */
+  @media (max-height:560px){
+    .titulo{font-size:clamp(30px,min(9vw,10.5vh),72px)}
+    #portada{gap:8px;padding-top:10px;padding-bottom:10px}
+    #portada .bajada{font-size:14px;margin:0}
+    #portada .comollo{gap:6px;font-size:13px;line-height:1.35}
+    #portada .comollo li{margin:0}
+    #portada .boton{padding:9px 26px;font-size:14px}
   }
 
   /* Pantalla baja y ancha (celular acostado): lo mismo pero mas apretado. */
