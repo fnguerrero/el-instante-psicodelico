@@ -398,7 +398,7 @@ var Guion = (function () {
           'algo. Lo hacés cuando escuchás a alguien contar un problema y ves, ' +
           'antes que la persona, dónde está el nudo. No lo aprendiste en ningún ' +
           'lado. Lo trajiste puesto.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Ya lo sabías. Esto era para que lo vieras de afuera.'
         ]
       };
     }
@@ -416,7 +416,7 @@ var Guion = (function () {
           'Ese segundo de más es todo el asunto. Es lo que hacés cuando alguien ' +
           'te cuenta algo y vos ves lo que no dijo. No es magia y no hace falta ' +
           'que lo sea.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Mañana te vas a acordar de algunas. De esas, ninguna es casualidad.'
         ]
       };
     }
@@ -432,7 +432,7 @@ var Guion = (function () {
           'tiempo. Igual algo viste, y esa cosa te la llevás.',
           'Con una alcanza para saber que se puede. Lo demás es acordarse de ' +
           'frenar, que es lo difícil.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Igual la viste. Y lo que se ve una vez ya no se borra.'
         ]
       };
     }
