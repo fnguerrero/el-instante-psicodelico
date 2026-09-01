@@ -816,7 +816,11 @@
       }
       Instante.apretar();
       J.errosSeguidos = 0;
-      mostrarAviso('encontraste algo que no cierra', 'bien');
+      /* En primera persona, como todo el resto. Decia "encontraste algo que no
+         cierra": una voz de afuera felicitandola justo en el momento en que
+         ella se esta dando cuenta de algo. Dos palabras alcanzan, y ademas
+         entran en cualquier pantalla sin partirse en dos renglones. */
+      mostrarAviso('Lo vi.', 'bien');
       Audio2.acierto();
 
       /* El mundo se frena y se dice lo que este lugar escondia, con la figura
@@ -1500,8 +1504,19 @@
        trece lugares devuelven el mismo brillo del fondo. Sin esta guarda el
        resultado es rojo por el entorno, que es tan inutil como un verde sin
        haber probado — y encima manda a arreglar codigo que estaba bien. */
-    if (W < 8 || H < 8) {
-      return { ok: null, motivo: 'ventana sin tamaño (' + W + 'x' + H + ')', flojos: [], detalle: {} };
+    /* Se miran las TRES medidas y no solo W/H internos.
+
+       W y H guardan el ultimo tamaño valido: cuando el panel del navegador se
+       colapsa, la ventana pasa a 0x0 pero esas variables conservan el valor
+       viejo, la guarda no salta y los trece lugares devuelven el mismo brillo
+       del fondo — 23,4 en los trece, que es la firma de que no se dibujo nada.
+       Un rojo asi manda a arreglar codigo que estaba bien. */
+    var anchoReal = cv.clientWidth || window.innerWidth || 0;
+    var altoReal = cv.clientHeight || window.innerHeight || 0;
+    if (W < 8 || H < 8 || anchoReal < 8 || altoReal < 8) {
+      return { ok: null, flojos: [], detalle: {},
+               motivo: 'ventana sin tamaño (canvas ' + W + 'x' + H +
+                       ', elemento ' + anchoReal + 'x' + altoReal + ')' };
     }
     var flojos = [], detalle = {};
     var guardado = { lugar: J.lugar, color: J.color, tension: J.tension };
@@ -1543,8 +1558,9 @@
   window.verificarLayout = function () {
     var problemas = [];
     var vw = window.innerWidth, vh = window.innerHeight;
-    if (vw < 8 || vh < 8) {
-      return { ok: null, motivo: 'ventana sin tamaño (' + vw + 'x' + vh + ')', problemas: [] };
+    if (vw < 8 || vh < 8 || document.documentElement.clientWidth < 8) {
+      return { ok: null, problemas: [],
+               motivo: 'ventana sin tamaño (' + vw + 'x' + vh + ')' };
     }
 
     if (document.documentElement.scrollWidth > vw + 1) {

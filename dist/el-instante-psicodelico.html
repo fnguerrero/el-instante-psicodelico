@@ -6324,7 +6324,7 @@ var Guion = (function () {
           'algo. Lo hacés cuando escuchás a alguien contar un problema y ves, ' +
           'antes que la persona, dónde está el nudo. No lo aprendiste en ningún ' +
           'lado. Lo trajiste puesto.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Ya lo sabías. Esto era para que lo vieras de afuera.'
         ]
       };
     }
@@ -6342,7 +6342,7 @@ var Guion = (function () {
           'Ese segundo de más es todo el asunto. Es lo que hacés cuando alguien ' +
           'te cuenta algo y vos ves lo que no dijo. No es magia y no hace falta ' +
           'que lo sea.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Mañana te vas a acordar de algunas. De esas, ninguna es casualidad.'
         ]
       };
     }
@@ -6358,7 +6358,7 @@ var Guion = (function () {
           'tiempo. Igual algo viste, y esa cosa te la llevás.',
           'Con una alcanza para saber que se puede. Lo demás es acordarse de ' +
           'frenar, que es lo difícil.',
-          'Seguí. Hay gente esperando que le mires las cosas.'
+          'Igual la viste. Y lo que se ve una vez ya no se borra.'
         ]
       };
     }
@@ -7051,7 +7051,7 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
       }
       Instante.apretar();
       J.errosSeguidos = 0;
-      mostrarAviso('encontraste algo que no cierra', 'bien');
+      mostrarAviso('Lo vi.', 'bien');
       Audio2.acierto();
 
       if (J.vioAhora) {
@@ -7555,8 +7555,12 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
                    'reloj','luna','puerta','ruina','bandada','barca'];
     var umbralMedio = minMedio === undefined ? 40 : minMedio;
     var umbralPct = minPctClaro === undefined ? 5 : minPctClaro;
-    if (W < 8 || H < 8) {
-      return { ok: null, motivo: 'ventana sin tamaño (' + W + 'x' + H + ')', flojos: [], detalle: {} };
+    var anchoReal = cv.clientWidth || window.innerWidth || 0;
+    var altoReal = cv.clientHeight || window.innerHeight || 0;
+    if (W < 8 || H < 8 || anchoReal < 8 || altoReal < 8) {
+      return { ok: null, flojos: [], detalle: {},
+               motivo: 'ventana sin tamaño (canvas ' + W + 'x' + H +
+                       ', elemento ' + anchoReal + 'x' + altoReal + ')' };
     }
     var flojos = [], detalle = {};
     var guardado = { lugar: J.lugar, color: J.color, tension: J.tension };
@@ -7591,8 +7595,9 @@ if (typeof module !== 'undefined' && module.exports) { module.exports = Guion; }
   window.verificarLayout = function () {
     var problemas = [];
     var vw = window.innerWidth, vh = window.innerHeight;
-    if (vw < 8 || vh < 8) {
-      return { ok: null, motivo: 'ventana sin tamaño (' + vw + 'x' + vh + ')', problemas: [] };
+    if (vw < 8 || vh < 8 || document.documentElement.clientWidth < 8) {
+      return { ok: null, problemas: [],
+               motivo: 'ventana sin tamaño (' + vw + 'x' + vh + ')' };
     }
 
     if (document.documentElement.scrollWidth > vw + 1) {
