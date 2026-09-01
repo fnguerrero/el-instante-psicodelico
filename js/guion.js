@@ -186,13 +186,15 @@ var Guion = (function () {
     },
     faro: {
       nombre: 'El faro',
-      llegada: 'Un faro prendido, dando vueltas, sin mar alrededor. Le está ' +
-               'avisando algo a gente que no veo.',
+      llegada: 'Un faro prendido, dando vueltas, sin mar alrededor. Nadie lo ' +
+               'prendió esta noche: está prendido desde antes que yo.',
       vuelta: 'El faro otra vez. Sigue barriendo el campo vacío, con la misma ' +
               'paciencia.',
-      esconde: 'El haz me busca. Da la vuelta entera y siempre frena un segundo ' +
-               'de más cuando me pasa por encima. No está alumbrando el campo: ' +
-               'me está alumbrando a mí.',
+      esconde: 'El haz da la vuelta entera y siempre frena un segundo de más ' +
+               'cuando me pasa por encima. No está barriendo el campo: me está ' +
+               'buscando a mí. Y cada vez que me encuentra sigue de largo ' +
+               'tranquilo, como quien se queda más tranquilo sabiendo dónde ' +
+               'estoy.',
       revela: 'bandada'
     },
     casa: {
