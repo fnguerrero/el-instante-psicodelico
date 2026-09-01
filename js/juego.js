@@ -68,6 +68,25 @@
   /* Todos los temporizadores del juego pasan por aca y quedan anotados. Sin un
      registro, reiniciar una partida deja vivos los `setTimeout` de la anterior
      y el juego avanza dos veces por cada paso. */
+  /* ---------- el reloj del bucle ----------
+
+     El juego pide sus cuadros a traves de pedirCuadro() y no directamente a
+     requestAnimationFrame. Parece un rodeo y es lo que permite probarlo: con
+     la pestaña oculta —o con el panel del navegador escondido— rAF entrega
+     CERO cuadros, asi que ninguna prueba automatica podia correr el bucle de
+     verdad. Todas dibujaban cuadros sueltos a mano, y por eso una version del
+     juego que se veia completamente negra paso ocho criterios en verde.
+
+     Con el reloj cambiable, una prueba puede pedirle N cuadros con el dt que
+     quiera y recorrer una partida entera en milisegundos, ejecutando el mismo
+     codigo que corre en la maquina de quien juega. */
+  var bucleManual = false;
+  var cuadrosDibujados = 0;
+  function pedirCuadro(fn) {
+    if (bucleManual) return 0;
+    return requestAnimationFrame(fn);
+  }
+
   var relojes = [];
   function luego(ms, fn) {
     var id = setTimeout(function () {
@@ -144,9 +163,32 @@
      numero fijo: los textos van de 60 a 170 caracteres y con un tiempo unico o
      el corto se eterniza o el largo no se llega a leer. Unos 52 ms por caracter
      es lectura tranquila en voz baja, mas un resto para arrancar. */
+  /* El ritmo de lectura.
+
+     Nico ya se quejo una vez de que los textos pasaban demasiado rapido, y la
+     velocidad comoda no es la misma para todo el mundo. El multiplicador se
+     guarda: quien lee despacio lo pone una vez y no lo toca nunca mas. */
+  var RITMOS = { rapido: .7, normal: 1, tranquilo: 1.5 };
+  var ritmoLectura = 'normal';
+  try {
+    var rg = localStorage.getItem('instante.lectura');
+    if (rg && RITMOS[rg]) ritmoLectura = rg;
+  } catch (e) {}
+
   function tiempoDeLectura(texto) {
-    return Math.max(2200, Math.min(9000, 900 + texto.length * 52));
+    var base = Math.max(2200, Math.min(9000, 900 + texto.length * 52));
+    return base * (RITMOS[ritmoLectura] || 1);
   }
+
+  window.ritmoLectura = function (r) {
+    if (r === undefined) return { ritmo: ritmoLectura, factor: RITMOS[ritmoLectura],
+                                  opciones: Object.keys(RITMOS) };
+    if (!RITMOS[r]) return { error: 'ritmo invalido', opciones: Object.keys(RITMOS) };
+    ritmoLectura = r;
+    try { localStorage.setItem('instante.lectura', r); } catch (e) {}
+    return { ritmo: ritmoLectura, factor: RITMOS[ritmoLectura] };
+  };
+  window.tiempoDeLectura = tiempoDeLectura;
 
   function decir(texto, alTerminar) {
     elRelato.classList.remove('ver');
@@ -249,6 +291,75 @@
   }
 
   /* ---------- el hilo ---------- */
+
+  /* ---------- guardar la partida ----------
+
+     Bel va a jugar esto en el celular: que una llamada entrante le borre siete
+     pasos es el peor final posible. Se guarda lo minimo que permite reponer el
+     recorrido —paso, lugar, lo visto y lo perdido— y NO la mano, que se
+     reparte de nuevo porque es al azar de todas formas.
+
+     Nunca se restaura solo. Al volver se ofrece, con las dos opciones a la
+     vista: alguien que quiere empezar de nuevo tiene derecho a hacerlo sin
+     pelear contra un guardado. */
+  var CLAVE_PARTIDA = 'instante.partida';
+
+  function guardarPartida() {
+    if (!J.jugando && J.paso === 0) return;
+    try {
+      localStorage.setItem(CLAVE_PARTIDA, JSON.stringify({
+        v: 1, paso: J.paso, lugar: J.lugar,
+        recorrido: J.recorrido.slice(), visitados: J.visitados,
+        indicios: J.indicios.slice(), perdidos: J.perdidos.slice(),
+        jugadas: J.jugadas.slice(), mazo: J.mazo.slice(),
+        tension: J.tension, color: J.color,
+        guiaMostrada: J.guiaMostrada, cuando: Date.now()
+      }));
+    } catch (e) { /* sin espacio o en privado: que no se guarde no es un error */ }
+  }
+
+  function partidaGuardada() {
+    try {
+      var crudo = localStorage.getItem(CLAVE_PARTIDA);
+      if (!crudo) return null;
+      var d = JSON.parse(crudo);
+      // Solo sirve si quedo a mitad de camino: ni recien empezada ni terminada.
+      if (!d || d.v !== 1 || !d.lugar || d.paso < 1 || d.paso >= Guion.PASOS) return null;
+      // Una partida de hace mas de una semana ya no es "seguir", es otra cosa.
+      if (d.cuando && Date.now() - d.cuando > 7 * 24 * 3600 * 1000) return null;
+      return d;
+    } catch (e) { return null; }
+  }
+
+  function olvidarPartida() {
+    try { localStorage.removeItem(CLAVE_PARTIDA); } catch (e) {}
+  }
+
+  function reponerPartida(d) {
+    J.paso = d.paso;
+    J.lugar = d.lugar;
+    J.recorrido = d.recorrido || [d.lugar];
+    J.visitados = d.visitados || {};
+    J.indicios = d.indicios || [];
+    J.perdidos = d.perdidos || [];
+    J.jugadas = d.jugadas || [];
+    if (d.mazo && d.mazo.length) J.mazo = d.mazo;
+    J.tension = J.tensionSuave = d.tension || 0;
+    if (d.color) J.color = d.color;
+    J.guiaMostrada = !!d.guiaMostrada;
+  }
+
+  window.pruebaGuardado = function () {
+    return { guardada: partidaGuardada(), clave: CLAVE_PARTIDA };
+  };
+  window.forzarGuardado = function () { guardarPartida(); return partidaGuardada(); };
+  window.olvidarPartida = olvidarPartida;
+  window.reponerGuardado = function () {
+    var d = partidaGuardada();
+    if (!d) return null;
+    reponerPartida(d);
+    return { paso: J.paso, lugar: J.lugar, indicios: J.indicios.length };
+  };
 
   function empezar() {
     document.getElementById('portada').classList.add('ido');
@@ -411,6 +522,7 @@
     J.mazo = J.mazo.filter(function (k) { return k !== c.clave; });
     J.jugadas.push(c.clave);
     J.paso++;
+    guardarPartida();
 
     /* A dónde lleva. En el último paso todo termina en la cama: es el
        despertar, y es la única vez que la cama puede aparecer. */
@@ -499,6 +611,7 @@
   }
 
   function terminar() {
+    olvidarPartida();   // una partida terminada no se sigue
     elRotulo.classList.remove('ver');
     elRelato.classList.remove('ver');
     elMarcador.classList.remove('ver');
@@ -782,6 +895,40 @@
     if (algunaCapaAbierta()) return;
     ev.preventDefault();
     tocarInstante();
+  });
+
+  /* Las teclas 1, 2 y 3 juegan la carta correspondiente.
+
+     Con la barra ya reservada para el instante, elegir carta obligaba a soltar
+     el teclado y volver al mouse justo en el momento de mas tension. Tres
+     teclas al lado de la barra dejan jugar la partida entera sin mover la
+     mano. */
+  window.addEventListener('keydown', function (ev) {
+    var n = { Digit1: 0, Digit2: 1, Digit3: 2,
+              Numpad1: 0, Numpad2: 1, Numpad3: 2 }[ev.code];
+    if (n === undefined) return;
+    if (ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    if (elCierre.classList.contains('ver')) return;
+    if (algunaCapaAbierta()) return;
+    var cartas = elMano.querySelectorAll('.carta');
+    if (!cartas || !cartas[n]) return;
+    ev.preventDefault();
+    cartas[n].click();
+  });
+
+  /* Reiniciar sin recargar. R, o el boton, y el sueño empieza de nuevo. */
+  function reiniciar() {
+    frenarRelojes();
+    olvidarPartida();
+    location.reload();
+  }
+  window.reiniciarJuego = reiniciar;
+  window.addEventListener('keydown', function (ev) {
+    if (ev.code !== 'KeyR' || ev.metaKey || ev.ctrlKey || ev.altKey) return;
+    var f = document.activeElement;
+    if (f && f.tagName === 'INPUT') return;
+    ev.preventDefault();
+    reiniciar();
   });
 
   /* ---------- dibujo ---------- */
@@ -1179,10 +1326,69 @@
     var filtro = Psicodelia.filtroCss(t, J.tensionSuave, J.climax);
     if (filtro !== filtroPuesto) { cv.style.filter = filtro; filtroPuesto = filtro; }
 
-    if (!sinBucle) requestAnimationFrame(cuadro);
+    cuadrosDibujados++;
+    if (!sinBucle && !bucleManual) pedirCuadro(cuadro);
   }
+
+  /* El bucle real va envuelto: una excepcion adentro de cuadro() mata el
+     requestAnimationFrame y la pantalla se queda congelada o negra, sin una
+     sola pista de que paso. Envuelto, el error se muestra y el juego intenta
+     seguir; si vuelve a fallar tres veces seguidas se apaga la psicodelia, que
+     es de donde vienen casi todas las capas nuevas, y se sigue en modo sobrio
+     antes que no seguir. */
+  var fallosSeguidos = 0;
+  function cuadroSeguro(ahora) {
+    if (pausado) { pedirCuadro(cuadroSeguro); return; }
+    try {
+      cuadro(ahora);
+      fallosSeguidos = 0;
+    } catch (e) {
+      fallosSeguidos++;
+      avisarFalla(e, fallosSeguidos);
+      if (fallosSeguidos === 3 && window.Psicodelia && Psicodelia.activo) {
+        Psicodelia.apagar();
+      }
+      if (fallosSeguidos < 12 && !sinBucle && !bucleManual) pedirCuadro(cuadroSeguro);
+    }
+  }
+
+  var elFalla = null;
+  function avisarFalla(e, veces) {
+    if (typeof console !== 'undefined' && console.error) console.error('cuadro:', e);
+    if (!elFalla) {
+      elFalla = document.createElement('div');
+      elFalla.setAttribute('role', 'alert');
+      elFalla.style.cssText = 'position:fixed;left:50%;top:14px;transform:translateX(-50%);' +
+        'z-index:99;max-width:min(92vw,560px);padding:10px 16px;border-radius:8px;' +
+        'background:rgba(20,10,26,.92);border:1px solid rgba(255,120,150,.5);' +
+        'color:#f4e9dd;font:14px/1.45 "Cormorant Garamond",Georgia,serif;text-align:center';
+      document.body.appendChild(elFalla);
+    }
+    elFalla.textContent = veces < 3
+      ? 'Algo se trabó un momento. El sueño sigue.'
+      : 'Los efectos se apagaron solos porque algo fallaba. El juego sigue andando.';
+  }
+
+  /* Con la pestaña escondida no se dibuja: nadie lo esta mirando y el post
+     proceso es lo mas caro que hace el juego. En un celular esto es bateria. */
+  var pausado = false;
+  document.addEventListener('visibilitychange', function () {
+    pausado = document.hidden;
+    if (!pausado) {
+      // Al volver, el reloj arranca de nuevo: sin esto el primer dt seria de
+      // varios minutos y todo daria un salto.
+      anterior = performance.now();
+      pedirCuadro(cuadroSeguro);
+    }
+  });
+  window.estaPausado = function () { return pausado; };
+  window.simularOculta = function (v) {
+    pausado = !!v;
+    if (!pausado) { anterior = performance.now(); pedirCuadro(cuadroSeguro); }
+    return pausado;
+  };
   var filtroPuesto = 'none', haloPuesto = -1;
-  requestAnimationFrame(cuadro);
+  requestAnimationFrame(cuadroSeguro);
 
   /* ---------- sonido ---------- */
 
@@ -1211,8 +1417,37 @@
     // El primer gesto del usuario es la única oportunidad de arrancar el audio.
     Audio2.prender();
     pintarSonido();
+    olvidarPartida();      // entrar de cero descarta lo guardado
     empezar();
   });
+
+  /* La oferta de continuar. Se arma al cargar, con lo que haya guardado. */
+  (function () {
+    var caja = document.getElementById('seguir');
+    if (!caja) return;
+    var d = partidaGuardada();
+    if (!d) return;
+    document.getElementById('seguirPaso').textContent = d.paso;
+    caja.hidden = false;
+
+    document.getElementById('btnSeguir').addEventListener('click', function () {
+      Audio2.prender();
+      pintarSonido();
+      reponerPartida(d);
+      /* Se entra por el mismo camino que una partida nueva, pero sin volver a
+         apilar el lugar en el recorrido: ya esta adentro del guardado. */
+      document.getElementById('portada').classList.add('ido');
+      luego(1500, function () { llegar(true); });
+    });
+    document.getElementById('btnDeNuevo').addEventListener('click', function () {
+      Audio2.prender();
+      pintarSonido();
+      olvidarPartida();
+      caja.hidden = true;
+      empezar();
+    });
+  })();
+
   pintarSonido();
 
   /* ---------- herramientas de revisión ---------- */
@@ -1227,6 +1462,130 @@
   window.psico = function (nivel) { return Psicodelia.ponerNivel(nivel); };
   window.psicoEstado = function () { return Psicodelia.estado(); };
   window.psicoCosto = function () { return Psicodelia.costo(); };
+
+  /* Corre el bucle real, cuadro por cuadro, sin rAF. dt en segundos: 1/60 por
+     omision. Devuelve cuantos cuadros dibujo de verdad. */
+  window.correrCuadros = function (cuantos, dt) {
+    var paso = (dt || 1 / 60) * 1000;
+    var antes = cuadrosDibujados;
+    bucleManual = true;
+    var reloj = (typeof anterior === 'number' && isFinite(anterior)) ? anterior : performance.now();
+    for (var i = 0; i < cuantos; i++) {
+      reloj += paso;
+      /* cuadroSeguro y no cuadro: si la prueba salta la envoltura, no esta
+         corriendo el bucle real sino una version sin la pausa ni el manejo de
+         errores — justo las dos cosas que hay que poder probar. */
+      cuadroSeguro(reloj);
+    }
+    bucleManual = false;
+    requestAnimationFrame(cuadroSeguro);   // devolverle el bucle al navegador
+    return cuadrosDibujados - antes;
+  };
+  window.cuadrosDibujados = function () { return cuadrosDibujados; };
+
+  /* ---------- verificar que el juego SE VEA ----------
+
+     Existe porque la tanda anterior termino con ocho criterios en verde y el
+     juego negro en pantalla: todas las pruebas comprobaban que las capas
+     CAMBIARAN el cuadro, ninguna que el cuadro fuera visible. Mide el brillo
+     medio de la franja donde vive la escena y cuantos pixeles pasan de umbral,
+     en los trece lugares y con tension 0, que es el caso peor. */
+  window.verificarLuz = function (minMedio, minPctClaro) {
+    var LUGARES = ['montania','platillo','calesita','laguna','faro','casa','arbol',
+                   'reloj','luna','puerta','ruina','bandada','barca'];
+    var umbralMedio = minMedio === undefined ? 40 : minMedio;
+    var umbralPct = minPctClaro === undefined ? 5 : minPctClaro;
+    /* Sin ventana no hay nada que medir. Pasa cuando el panel del navegador
+       esta colapsado: el canvas queda en 0x0, no se dibuja la escena y los
+       trece lugares devuelven el mismo brillo del fondo. Sin esta guarda el
+       resultado es rojo por el entorno, que es tan inutil como un verde sin
+       haber probado — y encima manda a arreglar codigo que estaba bien. */
+    if (W < 8 || H < 8) {
+      return { ok: null, motivo: 'ventana sin tamaño (' + W + 'x' + H + ')', flojos: [], detalle: {} };
+    }
+    var flojos = [], detalle = {};
+    var guardado = { lugar: J.lugar, color: J.color, tension: J.tension };
+
+    for (var i = 0; i < LUGARES.length; i++) {
+      window.instante(LUGARES[i], null, { t: 3, tension: 0, color: '255,150,120' });
+      var y0 = Math.floor(H * .25), alto = Math.floor(H * .60);
+      if (alto < 2) continue;
+      var d = cx.getImageData(0, y0, W, alto).data;
+      var suma = 0, n = 0, claros = 0;
+      for (var k = 0; k < d.length; k += 20) {
+        var v = (d[k] + d[k + 1] + d[k + 2]) / 3;
+        suma += v; n++;
+        if (v > 60) claros++;
+      }
+      var medio = suma / n, pct = claros / n * 100;
+      detalle[LUGARES[i]] = { medio: +medio.toFixed(1), pctClaro: +pct.toFixed(1) };
+      if (medio < umbralMedio || pct < umbralPct) {
+        flojos.push(LUGARES[i] + ' (' + medio.toFixed(1) + '/' + pct.toFixed(1) + '%)');
+      }
+    }
+    // Dejar el juego como estaba.
+    window.instante(guardado.lugar, null, { tension: guardado.tension, color: guardado.color });
+    var medios = Object.keys(detalle).map(function (k) { return detalle[k].medio; });
+    return {
+      ok: flojos.length === 0, flojos: flojos, detalle: detalle,
+      peor: medios.length ? Math.min.apply(null, medios) : 0,
+      promedio: medios.length ? +(medios.reduce(function (a, b) { return a + b; }, 0) / medios.length).toFixed(1) : 0,
+      umbrales: { medio: umbralMedio, pctClaro: umbralPct }
+    };
+  };
+
+  /* ---------- verificar el layout en varios tamaños ----------
+
+     No redimensiona la ventana —eso no se puede desde la pagina— sino que
+     compara lo que hay AHORA contra reglas que valen en cualquier tamaño: que
+     nada se salga por los costados, que los controles entren, y que no haya
+     desborde horizontal. Se corre a distintos tamaños desde afuera. */
+  window.verificarLayout = function () {
+    var problemas = [];
+    var vw = window.innerWidth, vh = window.innerHeight;
+    if (vw < 8 || vh < 8) {
+      return { ok: null, motivo: 'ventana sin tamaño (' + vw + 'x' + vh + ')', problemas: [] };
+    }
+
+    if (document.documentElement.scrollWidth > vw + 1) {
+      problemas.push('desborde horizontal: ' + document.documentElement.scrollWidth + ' > ' + vw);
+    }
+    var mirar = [
+      ['#empezar', 'boton de entrar'],
+      ['#sonido', 'boton de sonido'],
+      ['#intensidad', 'control de intensidad'],
+      ['.titulo', 'titulo']
+    ];
+    mirar.forEach(function (par) {
+      var el = document.querySelector(par[0]);
+      if (!el) return;
+      var r = el.getBoundingClientRect();
+      if (r.width < 1 && r.height < 1) return;   // oculto, no aplica
+      if (r.right > vw + 1 || r.left < -1) problemas.push(par[1] + ' se sale de costado');
+      if (r.bottom > vh + 1 || r.top < -1) problemas.push(par[1] + ' se sale de alto');
+      // Area tactil minima de los controles.
+      if (par[0] === '#sonido' || par[0] === '#intensidad') {
+        if (r.width < 40 || r.height < 40) {
+          problemas.push(par[1] + ' mide ' + Math.round(r.width) + 'x' + Math.round(r.height) + ', menos de 40');
+        }
+      }
+    });
+    /* Que la portada desborde no es un problema en si: en un celular chico el
+       texto no entra y scrollear esta bien. El problema seria que la salida
+       quede escondida, y por eso el boton es sticky. Lo que se verifica es lo
+       que importa de verdad: que se pueda entrar sin buscar. */
+    var portada = document.getElementById('portada');
+    if (portada && !portada.classList.contains('ido')) {
+      var bot = document.getElementById('empezar');
+      if (bot) {
+        var rb = bot.getBoundingClientRect();
+        if (rb.bottom > vh + 1 || rb.top < -1) {
+          problemas.push('el boton de entrar no esta a la vista');
+        }
+      }
+    }
+    return { ok: problemas.length === 0, ventana: vw + 'x' + vh, problemas: problemas };
+  };
 
   window.instante = function (figura, nombre, opciones) {
     opciones = opciones || {};

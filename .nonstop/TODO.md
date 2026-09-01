@@ -1,84 +1,45 @@
-# TODO — tanda 4: 50 modificaciones psicodélicas
+# TODO — tanda 5: 20 mejoras a la app
 
 Estados: `[ ]` pendiente · `[~]` en curso · `[x]` hecho y verificado · `[!]` bloqueado
 
-## Andamiaje (primero, para poder verificar sin manos)
+## Bloque A — poder verificar de verdad (1-3)
 
-- [x] 00 · Ganchos de prueba: `psico(nivel)`, `psicoEstado()`, `psicoCosto()` y captura con filtro aplicado · verif: los tres responden y devuelven datos coherentes
+- [x] 01 · Reloj inyectable: correr el bucle real sin depender de rAF · verif: una partida completa con el bucle real, contando cuadros
+- [x] 02 · Chequeo de visibilidad dentro de la batería · verif: `verificarLuz()` da ok en los 13 lugares y falla si se baja el brillo a propósito
+- [x] 03 · Auditoría de layout en 6 tamaños como prueba permanente · verif: `verificarLayout()` recorre los tamaños y reporta desbordes
 
-## Bloque A — pipeline y control (1-6)
+## Bloque B — que no se rompa (4-7)
 
-- [x] 01 · Pipeline de capas con presupuesto de tiempo y apagado automático · verif: `psicoCosto()` reporta ms por capa
-- [x] 02 · Tres niveles de intensidad (suave/normal/extremo) en localStorage · verif: cambiar nivel altera `psicoEstado().nivel` y sobrevive recarga
-- [x] 03 · Guarda anti-estroboscopio: ningún pulso de pantalla completa sobre 3 Hz · verif: medir frecuencia máxima de los pulsos declarados
-- [x] 04 · Auto-degradado: si el cuadro se pasa de 6 ms, apagar capas caras · verif: forzar presupuesto bajo y ver capas apagadas
-- [x] 05 · Revisión de reduced-motion sobre todas las capas nuevas · verif: con el flag activo, cero capas de movimiento
-- [x] 06 · Control de intensidad visible en pantalla · verif: el control existe, cambia el nivel y se lee
+- [x] 04 · Red de seguridad: una excepción en el bucle muestra un aviso legible, no un cuadro negro · verif: romper una capa a propósito y ver el aviso
+- [x] 05 · Pausar el render con la pestaña oculta · verif: `document.hidden` simulado deja de dibujar
+- [x] 06 · Guardar la partida en curso · verif: guardar, recargar y que el estado vuelva
+- [x] 07 · Ofrecer continuar al volver, sin restaurar solo · verif: aparece el aviso con las dos opciones
 
-## Bloque B — color y luz (7-18)
+## Bloque C — pantallas raras (8-11)
 
-- [x] 07 · Paleta propia por lugar, no un tinte único · verif: capturar 4 lugares y comprobar tonos distintos
-- [x] 08 · Plasma de fondo (campo de color que se mueve) · verif: captura + dos cuadros distintos
-- [x] 09 · Aura cromática alrededor de la figura · verif: captura muestra halo de color
-- [x] 10 · Estrellas que cambian de color · verif: captura del cielo con estrellas de colores
-- [x] 11 · Halo iridiscente en Bel · verif: captura recortada de Bel
-- [x] 12 · Suelo con reflejo de color invertido · verif: captura de la franja del piso
-- [x] 13 · Viñeta de color en vez de negra · verif: medir color en las esquinas
-- [x] 14 · Destello arcoíris al acertar el instante · verif: forzar acierto y capturar
-- [x] 15 · Gradiente radial rotante detrás de la figura · verif: dos capturas con ángulos distintos
-- [x] 16 · Curva de color: subir saturación sin quemar luces · verif: medir que no haya canal saturado en 255
-- [x] 17 · Contraluz de color en el horizonte · verif: captura de la línea del piso
-- [x] 18 · Inversión parcial de color en el clímax · verif: captura con climax=1
+- [x] 08 · Pantallas muy angostas (320px) · verif: sin desborde horizontal a 320x568
+- [x] 09 · Pantallas bajas: revisar marcador, avisos y cartas · verif: nada se pisa a 1600x500
+- [x] 10 · Respetar `prefers-contrast: more` · verif: con el flag, los textos suben de contraste
+- [x] 11 · Área táctil mínima de 44px en todo lo accionable · verif: medir los rectángulos de los controles
 
-## Bloque C — deformación (19-30)
+## Bloque D — compartir el link (12-15)
 
-- [x] 19 · Ondulación también vertical · verif: captura con líneas rectas deformadas en los dos ejes
-- [x] 20 · Remolino centrado en la figura · verif: captura muestra torsión
-- [x] 21 · Respiración de zoom ligada a la tensión · verif: dos capturas con escala distinta
-- [x] 22 · Caleidoscopio en la transformación · verif: captura durante la mutación
-- [x] 23 · Ondas concéntricas al jugar una carta · verif: captura en el momento del juego
-- [x] 24 · Rotación leve del cuadro entero · verif: medir inclinación de la línea del piso
-- [x] 25 · Barril / ojo de pez suave · verif: captura con bordes curvados
-- [x] 26 · Corte en tiras verticales además de horizontales · verif: captura con desplazamiento en columnas
-- [x] 27 · Desplazamiento por bloques tipo glitch, ocasional · verif: forzar el evento y capturar
-- [x] 28 · Temblor en el clímax · verif: dos capturas seguidas con offset distinto
-- [x] 29 · Espejo simétrico intermitente · verif: captura con simetría
-- [x] 30 · Estiramiento cromático en los bordes · verif: captura de una esquina
+- [x] 12 · meta description y título social · verif: las etiquetas están y tienen contenido
+- [x] 13 · Open Graph y Twitter card · verif: og:title, og:description, og:image presentes
+- [x] 14 · theme-color y manifest para instalar · verif: manifest válido embebido, sin archivo externo
+- [x] 15 · Imagen de compartir generada del propio juego · verif: la imagen existe, pesa menos de 200 KB y se ve la escena
 
-## Bloque D — rastro y partículas (31-40)
+## Bloque E — comodidad de juego (16-18)
 
-- [x] 31 · Sistema de partículas propio, con tope y reciclado · verif: contar partículas vivas y que no crezca sin límite
-- [x] 32 · Polvo flotante ambiente · verif: captura con motas
-- [x] 33 · Chispas al acertar · verif: forzar acierto y contar partículas nuevas
-- [x] 34 · Rastro de color detrás de Bel al caminar · verif: captura con Bel en movimiento
-- [x] 35 · Trazo de las piezas durante la mutación · verif: captura a mitad de transformación
-- [x] 36 · Anillos expansivos al cambiar de lugar · verif: captura al completar la mutación
-- [x] 37 · Lluvia de puntos en el clímax · verif: captura con climax alto
-- [x] 38 · Estela multicolor por figura, con el color del lugar · verif: capturas de dos lugares distintos
-- [x] 39 · Partículas que reaccionan al acierto y al fallo distinto · verif: forzar los dos y comparar
-- [x] 40 · Presupuesto de partículas por nivel de intensidad · verif: el tope cambia con el nivel
+- [x] 16 · Teclas 1/2/3 para elegir carta · verif: disparar la tecla juega la carta correspondiente
+- [x] 17 · Reiniciar sin recargar · verif: el control existe y deja el juego en el paso 0
+- [x] 18 · Ritmo de lectura ajustable y recordado · verif: cambia el tiempo de los textos y sobrevive recarga
 
-## Bloque E — naipes, UI y pantallas (41-46)
+## Bloque F — rendimiento (19-20)
 
-- [x] 41 · Naipes con brillo iridiscente en el borde · verif: captura de una carta
-- [x] 42 · Dorso del naipe animado · verif: dos capturas del dorso distintas
-- [x] 43 · Marcador de indicios con color que muta · verif: captura del marcador
-- [x] 44 · Portada psicodélica · verif: captura de la portada
-- [x] 45 · Cierre y carta final con tratamiento propio · verif: captura del final
-- [x] 46 · Aura en la carta bajo el cursor · verif: forzar hover y capturar
-
-## Bloque F — audio reactivo (47-50)
-
-- [x] 47 · Analizador de audio conectado al pipeline · verif: `psicoEstado().audio` devuelve nivel entre 0 y 1
-- [x] 48 · Pulso visual con los graves · verif: correlacionar nivel de audio con escala del cuadro
-- [x] 49 · Drone que sube con la tensión · verif: el oscilador existe y su ganancia sigue a la tensión
-- [x] 50 · Shimmer en el clímax · verif: la voz suena solo con climax alto
+- [x] 19 · Adaptar la carga a equipos flojos · verif: con un presupuesto bajo forzado, baja solo el nivel
+- [x] 20 · Bajar el peso del archivo suelto · verif: el dist pesa menos que ahora y sigue funcionando
 
 ## Cierre
 
-- [x] 51 · Verificación final contra los criterios de la SPEC · verif: los 8 criterios en verde
-- [x] 52 · Capturas del look final (26/45/65 KB). NO se tocó Portfolio/: esa entrada es de la versión original y la lleva otra sesión · verif: 3 imágenes bajo 100 KB
-
-## Post-cierre — lo que se rompió y se arregló
-
-- [x] 53 · El juego se veía negro en pantalla · verif: brillo medio de escena > 40 y > 5% claro en los 13 lugares con tensión 0
+- [x] 21 · Verificación final contra los 9 criterios de la SPEC · verif: los 9 en verde
