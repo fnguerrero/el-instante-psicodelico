@@ -38,6 +38,17 @@ var Psicodelia = (function () {
   try {
     var g = localStorage.getItem('psico.nivel');
     if (g && NIVELES[g]) nivel = g;
+    else {
+      /* Sin eleccion previa, el nivel sale de lo que la maquina puede.
+         deviceMemory y hardwareConcurrency no son exactos, pero distinguen bien
+         un celular viejo de una computadora: arrancar en 'extremo' en un
+         telefono de dos nucleos es garantizar que la primera impresion sea a
+         tirones. Quien quiera mas, lo sube con el boton. */
+      var nucleos = navigator.hardwareConcurrency || 4;
+      var memoria = navigator.deviceMemory || 4;
+      if (nucleos <= 2 || memoria <= 2) nivel = 'suave';
+      else if (nucleos >= 8 && memoria >= 8) nivel = 'normal';
+    }
   } catch (e) {}
 
   var activo = true;
@@ -186,7 +197,15 @@ var Psicodelia = (function () {
     if (peor) {
       apagadasPorCosto[peor.nombre] = 'presupuesto';
       gastoUltimo = 0;
+      return;
     }
+    /* Ya no queda ninguna capa cara para apagar y el cuadro sigue sin entrar:
+       la maquina no da. Bajar el nivel entero achica particulas, tiras y
+       radios de una sola vez, que es mas efectivo que seguir apagando efectos
+       sueltos hasta que no quede nada. */
+    if (nivel === 'extremo') ponerNivel('normal', false);
+    else if (nivel === 'normal') ponerNivel('suave', false);
+    gastoUltimo = 0;
   }
 
   /* Cada tanto se le devuelve la oportunidad a una capa apagada por costo. Una
@@ -283,10 +302,13 @@ var Psicodelia = (function () {
   }
 
   /* ---------------- control ---------------- */
-  function ponerNivel(n) {
+  /* guardar=false lo usa el degradado automatico: bajar el nivel porque la
+     maquina no da NO puede pisar la eleccion de quien juega. La proxima vez
+     que abra en otro equipo tiene que volver a tener lo que eligio. */
+  function ponerNivel(n, guardar) {
     if (!NIVELES[n]) return { error: 'nivel invalido', validos: Object.keys(NIVELES) };
     nivel = n;
-    try { localStorage.setItem('psico.nivel', n); } catch (e) {}
+    if (guardar !== false) { try { localStorage.setItem('psico.nivel', n); } catch (e) {} }
     // Un nivel nuevo merece otra oportunidad para las capas apagadas por costo.
     for (var k in apagadasPorCosto) {
       if (apagadasPorCosto[k] === 'presupuesto') delete apagadasPorCosto[k];

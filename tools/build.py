@@ -6,16 +6,53 @@ import io, os, re, sys
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+def adelgazar(js):
+    """Saca del BUNDLE los comentarios que ocupan una linea entera.
+
+    El codigo fuente los conserva enteros: son la mitad del valor del proyecto.
+    Lo que viaja en el archivo suelto no los necesita.
+
+    Es deliberadamente conservador: solo borra lineas cuyo contenido COMPLETO es
+    un comentario, y para los bloques exige que la linea empiece con /* y que el
+    cierre este en su propia linea. Un // dentro de un string, o un /* pegado a
+    codigo, quedan intactos porque no cumplen esas condiciones. Preferible dejar
+    comentarios de mas que romper el juego por ahorrar kilobytes.
+    """
+    salida, dentro = [], False
+    for linea in js.split(chr(10)):
+        limpio = linea.strip()
+        if dentro:
+            if limpio.endswith('*/'):
+                dentro = False
+            continue
+        if limpio.startswith('/*') and not limpio.endswith('*/'):
+            dentro = True
+            continue
+        if limpio.startswith('/*') and limpio.endswith('*/'):
+            continue
+        if limpio.startswith('//'):
+            continue
+        if limpio == '' and salida and salida[-1].strip() == '':
+            continue
+        salida.append(linea)
+    return chr(10).join(salida)
+
+
 def construir(entrada, salida):
     ruta = os.path.join(BASE, entrada)
     html = io.open(ruta, encoding='utf-8').read()
+    # --gordo deja los comentarios: sirve para depurar el propio bundle.
+    adelgaza = '--gordo' not in sys.argv
 
     def meter(m):
         src = m.group(1)
         p = os.path.normpath(os.path.join(os.path.dirname(ruta), src))
         if not os.path.isfile(p):
             raise SystemExit('falta el modulo: ' + src)
-        return '<script>\n' + io.open(p, encoding='utf-8').read() + '\n</script>'
+        cuerpo = io.open(p, encoding='utf-8').read()
+        if adelgaza:
+            cuerpo = adelgazar(cuerpo)
+        return '<script>\n' + cuerpo + '\n</script>'
 
     html = re.sub(r'<script src="([^"]+)"></script>', meter, html)
 
@@ -23,13 +60,15 @@ def construir(entrada, salida):
         raise SystemExit('quedo un script sin incrustar')
     # Sin estas piezas el bundle no juega: mejor no emitirlo que emitirlo roto.
     for clave in ['function jugar(', 'Figuras.preparar', 'Pintores.pintar',
-                  'requestAnimationFrame(cuadro)', 'var Figuras', 'var Pintores',
+                  'requestAnimationFrame(cuadroSeguro)', 'pedirCuadro', 'var Figuras', 'var Pintores',
                   'var Audio2', 'var Guion', 'Audio2.transformar', 'Audio2.prender',
                   'touchstart', 'LEJANIA', 'var BASES', 'var Instante',
                   'dibujar: dibujar', 'Instante.dibujar', 'forzarMirada',
                   'var Naipes', 'Naipes.dibujar', 'NO_AL_ARRANQUE',
                   'cartaDeElla', 'astrologa:', 'function dorso', 'mostrarCartaFinal',
-                  'CARTA_PARA_BEL', 'abrirCarta', 'tensar', 'tensionSuave']:
+                  'CARTA_PARA_BEL', 'abrirCarta', 'tensar', 'tensionSuave',
+                  'correrCuadros', 'verificarLuz', 'verificarLayout',
+                  'guardarPartida', 'og:image', 'rel="manifest"']:
         if clave not in html:
             raise SystemExit('falta en el bundle: ' + clave)
 
