@@ -457,24 +457,56 @@
   var naipes = [];
 
   /* Pinta cada lamina a la resolucion real de su hueco. Si se dibujara a un
-     tamano fijo, en pantallas densas se veria borrosa. */
-  function pintarNaipes() {
+     tamano fijo, en pantallas densas se veria borrosa.
+
+     Con `forzar` se ignora el cache de tamano y se repinta todo. Hace falta
+     porque un canvas puede quedar EN BLANCO sin que su tamano haya cambiado:
+     el navegador tira el contenido de los canvas cuando anda corto de memoria
+     o cuando la pestana estuvo escondida un rato largo. Se veia el marco de la
+     carta vacio, que es el sintoma que reportaba cualquiera que dejara el
+     juego abierto y volviera despues. */
+  function pintarNaipes(forzar) {
     var d = Math.min(2, window.devicePixelRatio || 1);
     naipes.forEach(function (n) {
       var an = n.lienzo.clientWidth, al = n.lienzo.clientHeight;
-      if (an < 2 || al < 2) { an = 126; al = 189; }
+      /* Sin tamano todavia —la carta entra con una transicion— se pinta con la
+         medida de reserva, pero NO se cachea: cuando el hueco sea de verdad hay
+         que volver a pintarlo a su resolucion. */
+      var provisorio = false;
+      if (an < 2 || al < 2) { an = 126; al = 189; provisorio = true; }
       // Repintar un naipe es caro; si el hueco no cambio, no hay nada que hacer.
-      if (n.an === an && n.al === al) return;
-      n.an = an; n.al = al;
+      if (!forzar && n.an === an && n.al === al) return;
+      n.an = provisorio ? 0 : an; n.al = provisorio ? 0 : al;
+      /* Asignar el tamano BORRA el canvas, asi que a partir de aca la lamina
+         esta vacia hasta que termine de dibujarse. */
       n.lienzo.width = an * d;
       n.lienzo.height = al * d;
       var c2 = n.lienzo.getContext('2d');
       c2.setTransform(d, 0, 0, d, 0, 0);
-      Naipes.dibujar(c2, n.carta.clave, n.carta.num, n.carta.nombre, an, al,
-                     n.carta.lectura, n.carta.astro);
+      /* Cada naipe en su propio try: una lamina que falla dejaba sin pintar a
+         TODAS las que venian despues, porque la excepcion cortaba el forEach y
+         a esas ya se les habia borrado el canvas. Una carta rota es un hueco;
+         tres cartas rotas es una mano que no se puede jugar. */
+      try {
+        Naipes.dibujar(c2, n.carta.clave, n.carta.num, n.carta.nombre, an, al,
+                       n.carta.lectura, n.carta.astro);
+      } catch (e) {
+        n.an = 0; n.al = 0;   // que el proximo intento la vuelva a probar
+        if (window.console) console.error('no se pudo pintar ' + n.carta.clave, e);
+      }
     });
   }
-  window.addEventListener('resize', pintarNaipes);
+  window.addEventListener('resize', function () { pintarNaipes(); });
+  /* Al cambiar la visibilidad se repinta sin mirar el cache: es justo cuando el
+     navegador pudo haber tirado el contenido de los canvas.
+
+     Sin preguntar por `document.hidden` a proposito. Adentro de un panel
+     embebido —el visor de Claude, un iframe de fondo— la pagina reporta
+     `hidden: true` de forma permanente, asi que la guarda obvia dejaba sin
+     repintar exactamente al que mas lo necesita. Repintar de mas son tres
+     laminas; repintar de menos es una mano en blanco. */
+  document.addEventListener('visibilitychange', function () { pintarNaipes(true); });
+  window.addEventListener('pageshow', function () { pintarNaipes(true); });
 
   function mostrarMano() {
     var claves = repartir(3);
@@ -507,6 +539,11 @@
     });
     // Despues de insertarlas: recien ahi tienen tamano.
     pintarNaipes();
+    /* Y otra vez cuando terminaron de entrar. La carta llega a su tamano final
+       recien al final de la transicion: lo que se pinto antes salio con la
+       medida de reserva y se veria estirado. Con el cache puesto, esta segunda
+       pasada no cuesta nada si ya estaban bien. */
+    luego(90 + claves.length * 130 + 600, function () { pintarNaipes(true); });
     medirMano();
   }
 
